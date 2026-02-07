@@ -1,14 +1,21 @@
 import copy
 import math
+from functools import partial
 
 import torch
 import torch.nn as nn
 from torch.distributions import Normal
 
+
+from bbrl_utils.notebook import tqdm
+
 import bbrl_gymnasium
 from bbrl.agents import Agent, Agents, TemporalAgent
 from bbrl.visu.plot_policies import plot_policy
 from bbrl_utils.algorithms import EpochBasedAlgo
+from bbrl.utils.replay_buffer import ReplayBuffer
+from bbrl.agents.gymnasium import ParallelGymAgent, make_env
+from bbrl.workspace import Workspace
 from bbrl_utils.nn import (
     build_mlp,
     setup_optimizer,
@@ -604,3 +611,221 @@ def run_td3(td3: TD3):
                     stochastic=False,
                 )
 
+# ================= OFFLINE ===================
+
+def run_td3_offline(td3: TD3, fixed_rb: ReplayBuffer):
+
+    # set replay buffer once and don't change it afterwards
+    td3.replay_buffer = fixed_rb # TODO: any reason to but it as argument? is it used somewhere else?
+
+    # NOTE: only a part of `iter_replay_buffers` code is taken,
+    # so that replay buffer stays the same
+    # TODO: in `iter_replay_buffers` train_workspace is defined once,
+    # + copy of last step, but here we don't care about it because we have replay buffer?
+    epochs_pb = tqdm(range(td3.cfg.algorithm.max_epochs))
+    for epoch in epochs_pb:
+
+        train_workspace = Workspace()
+        td3.train_agent(
+            train_workspace,
+            t=0,
+            n_steps=td3.cfg.algorithm.n_steps+1,
+            stochastic=True,
+        )
+        td3.nb_steps += train_workspace.get_transitions().batch_size()
+
+
+        epochs_pb.set_description(
+                f"nb_steps: {td3.nb_steps}, "
+                f"best reward: {td3.best_reward: .2f}, "
+                f"running reward: {td3.running_reward: .2f}"
+            )
+        
+        # Sample transitions from a fixed `replay_buffer` 
+        # NOTE: modifications to this workspace don't affect rb
+        rb_workspace = td3.replay_buffer.get_shuffled(td3.cfg.algorithm.batch_size)
+
+        # The remainder is identical to `run_td3()`:
+        # Implement the learning loop
+
+        # ADAPTED FROM DDPG:
+
+        # Critic update
+        # Compute critic loss
+        # [[STUDENT]]...
+        td3.t_q_agent_1(rb_workspace, t=0, n_steps=1) # evaluate actions from rb with online Q
+        td3.t_q_agent_2(rb_workspace, t=0, n_steps=1)
+        # better performance without this line: is it?? why????
+        td3.t_target_actor_agent(rb_workspace, t=1, n_steps=1) # do actor's actions
+        with torch.no_grad():
+            td3.t_target_q_agent_1(rb_workspace, t=1, n_steps=1) # evaluate actor's action with target Q
+            td3.t_target_q_agent_2(rb_workspace, t=1, n_steps=1)
+
+        reward, terminated,\
+        q_values_1, target_q_values_1,\
+        q_values_2, target_q_values_2,\
+        = rb_workspace[
+            "env/reward", 
+            "env/terminated",
+            "critic_1/q_value", 
+            "target-critic_1/q_value",
+            "critic_2/q_value", 
+            "target-critic_2/q_value",
+            ]
+        
+        critic_loss_1 = compute_critic_loss(
+            cfg=td3.cfg, 
+            reward=reward,
+            must_bootstrap=~terminated,
+            q_values=q_values_1,
+            target_q_values=torch.min(target_q_values_1,target_q_values_2)
+        )
+
+        critic_loss_2 = compute_critic_loss(
+            cfg=td3.cfg, 
+            reward=reward,
+            must_bootstrap=~terminated,
+            q_values=q_values_2,
+            target_q_values=torch.min(target_q_values_1,target_q_values_2)
+        )
+
+
+        # Gradient step (critic)
+        td3.logger.add_log("critic_loss_1", critic_loss_1, td3.nb_steps)
+        td3.critic_optimizer_1.zero_grad()
+        critic_loss_1.backward()
+        torch.nn.utils.clip_grad_norm_(
+            td3.critic_1.parameters(), td3.cfg.algorithm.max_grad_norm
+        )
+        td3.critic_optimizer_1.step()
+
+        td3.logger.add_log("critic_loss_2", critic_loss_2, td3.nb_steps)
+        td3.critic_optimizer_2.zero_grad()
+        critic_loss_2.backward()
+        torch.nn.utils.clip_grad_norm_(
+            td3.critic_2.parameters(), td3.cfg.algorithm.max_grad_norm
+        )
+        td3.critic_optimizer_2.step()
+
+        # Compute the actor loss
+        # [[STUDENT]]...
+        
+        td3.t_actor_agent(rb_workspace, t=0, n_steps=1) # do an action proposed by actor
+        td3.t_q_agent_1(rb_workspace, t=0, n_steps=1) # evaluate it with critic
+        td3.t_q_agent_2(rb_workspace, t=0, n_steps=1)
+
+        critic_choice = int(torch.randint(low=1, high=3, size=(1,)))
+        actor_loss = compute_actor_loss(rb_workspace[f"critic_{critic_choice}/q_value"])
+
+        # print(f"critic / actor loss: {critic_loss} ::: {actor_loss}")
+
+
+        # Gradient step (actor)
+        td3.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            td3.actor.parameters(), td3.cfg.algorithm.max_grad_norm
+        )
+        td3.actor_optimizer.step()
+
+        # Soft update of target q function
+        soft_update_params(
+            td3.critic_1, td3.target_critic_1, td3.cfg.algorithm.tau_target
+        )
+
+        soft_update_params(
+            td3.critic_2, td3.target_critic_2, td3.cfg.algorithm.tau_target
+        )
+
+        # Update target policy
+        if (
+            td3.nb_steps - td3.last_policy_update_step
+            > td3.cfg.algorithm.policy_delay
+        ):
+            td3.last_policy_update_step = td3.nb_steps
+            copy_parameters(td3.t_actor_agent, td3.t_target_actor_agent)
+
+        # Evaluate the actor if needed
+        if td3.evaluate():
+            if td3.cfg.plot_agents:
+                plot_policy(
+                    td3.actor,
+                    td3.eval_env,
+                    td3.best_reward,
+                    str(td3.base_dir / "plots"),
+                    td3.cfg.gym_env.env_name,
+                    stochastic=False,
+                )
+
+# ============== REPLAY BUFFER COMPOSITION ==============
+
+def get_gym_agent(env_name:str,num_envs:int, seed:int=42):
+    '''
+    Get multiple gymnasium environments as ParallelGymAgent with autoreset=True
+    
+    :param env_name: Name of the environment
+    :type env_name: str
+    :param num_envs: Number of parallel environments
+    :type num_envs: int
+    :param seed: Seed
+    :type seed: int
+    '''
+    return ParallelGymAgent(partial(make_env, env_name=env_name, autoreset=True), 
+                            num_envs=num_envs).seed(seed)
+
+def get_workspace(policy_agent:Agent, gym_agent: ParallelGymAgent, epoch_size:int):
+    '''
+    Runs a policy on parallel gymnasium environments and returns the workspace.
+    
+    :param policy_agent: Policy agent
+    :type policy_agent: Agent
+    :param gym_agent: Parallel gymnasium environment agent
+    :type gym_agent: ParallelGymAgent
+    :param epoch_size: Epoch size (number of steps)
+    :type epoch_size: int
+    '''
+    t_agents = TemporalAgent(Agents(gym_agent, policy_agent))
+    workspace = Workspace() 
+    t_agents(workspace, n_steps=epoch_size)
+    return workspace
+
+def get_random_transitions(workspace: Workspace, batch_size:int):
+    '''
+    Sample random transitions from a workspace.
+    
+    :param workspace: Workspace
+    :type workspace: Workspace
+    :param batch_size: Number of transitions to sample
+    :type batch_size: int
+    '''
+    transitions = workspace.get_transitions()
+    assert batch_size <= transitions.batch_size() # n _nv * nb_steps
+    # TODO: check if does what we want: sample a single subworkspace,
+    #  2 timesteps because we are sampling from transitions t, t+1
+    # TODO: check if it's a sampling without replacement
+    return transitions.sample_subworkspace(n_times=1,
+                                           n_batch_elements=batch_size,
+                                           n_timesteps=2)
+
+def mix_transitions(workspace1: Workspace, workspace2: Workspace,batch_size: int, proportion: float):
+    '''
+    Create a replay buffer based on a random mix of transitions 
+    from 2 workspaces in a given proportion. 
+    
+    :param workspace1: First workspace
+    :type workspace1: Workspace
+    :param workspace2: Second workspace
+    :type workspace2: Workspace
+    :param batch_size: Number of transitions in final replay buffer
+    :type batch_size: int
+    :param proportion: Proportion of transitions coming from first workspace
+    :type proportion: float
+    '''
+    size1 = int(batch_size*proportion)
+    size2 = batch_size - size1
+    transitions1 = get_random_transitions(workspace1, size1)
+    transitions2 = get_random_transitions(workspace2, size2)
+    rb_mixed = ReplayBuffer(batch_size)
+    rb_mixed.put(transitions1)
+    rb_mixed.put(transitions2)
+    return rb_mixed
