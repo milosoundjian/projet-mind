@@ -1,0 +1,27 @@
+[project]
+name = "projet-mind"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "bbrl>=1.0.1",
+    "bbrl-gymnasium>=1.0.1",
+    "bbrl-utils>=1.1.1",
+    "ipykernel>=7.2.0",
+    "matplotlib>=3.10.8",
+    "torch>=2.10.0",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
