@@ -1,6 +1,5 @@
-# Configurations from BBRL notebooks
 
-models:
+bbrl_examples: # configurations from BBRL tutorial
 
   dqn:
     base_dir: ${gym_env.env_name}/dqn-S${algorithm.seed}_${current_time:}

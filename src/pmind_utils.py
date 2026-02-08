@@ -2,9 +2,16 @@ import copy
 import math
 from functools import partial
 
+from typing import Callable, Type
+from numpy.typing import ArrayLike
+
+import matplotlib.pyplot as plt
+
 import torch
 import torch.nn as nn
 from torch.distributions import Normal
+
+import numpy as np
 
 
 from bbrl_utils.notebook import tqdm
@@ -803,11 +810,12 @@ def get_random_transitions(workspace: Workspace, batch_size:int):
     # TODO: check if does what we want: sample a single subworkspace,
     #  2 timesteps because we are sampling from transitions t, t+1
     # TODO: check if it's a sampling without replacement
+    # TODO: set seed
     return transitions.sample_subworkspace(n_times=1,
                                            n_batch_elements=batch_size,
                                            n_timesteps=2)
 
-def mix_transitions(workspace1: Workspace, workspace2: Workspace,batch_size: int, proportion: float):
+def mix_transitions(workspace1: Workspace, workspace2: Workspace,buffer_size: int, proportion: float):
     '''
     Create a replay buffer based on a random mix of transitions 
     from 2 workspaces in a given proportion. 
@@ -821,11 +829,49 @@ def mix_transitions(workspace1: Workspace, workspace2: Workspace,batch_size: int
     :param proportion: Proportion of transitions coming from first workspace
     :type proportion: float
     '''
-    size1 = int(batch_size*proportion)
-    size2 = batch_size - size1
+    size1 = int(buffer_size*proportion)
+    size2 = buffer_size - size1
     transitions1 = get_random_transitions(workspace1, size1)
     transitions2 = get_random_transitions(workspace2, size2)
-    rb_mixed = ReplayBuffer(batch_size)
+    rb_mixed = ReplayBuffer(buffer_size)
     rb_mixed.put(transitions1)
     rb_mixed.put(transitions2)
     return rb_mixed
+
+
+# =================== TEST RB COMPOSITIONS ===================
+
+def plot_perf_vs_rb_composition(proportions, performances):
+    # TODO: for now it just take the last evaluation, 
+    # need to consider n-th evaluation instead
+    means = np.array([perf[-1].mean().item() for perf in performances])
+    stds = np.array([perf[-1].std().item() for perf in performances])
+    plt.plot(proportions, means)
+    plt.fill_between(proportions, means - stds, means + stds, alpha = 0.1)
+    plt.title("Offline learning performance\nfor different replay buffer compositions")
+    plt.xlabel("% of uniform exploration")
+    plt.ylabel("evaluation performance")
+    plt.show()
+
+def test_rb_compositions(workspace_unif: Workspace,
+                          workspace_best: Workspace,
+                          buffer_size: int,
+                          proportions: list,
+                          agent_constructor: Type[EpochBasedAlgo], 
+                          cfg,
+                          offline_run: Callable[[EpochBasedAlgo, ReplayBuffer], None],
+                          plot = True
+                          ):
+    # TODO: do multiple seeds and then average!!
+    performances = []
+    for prop in proportions:
+        rb_mixed = mix_transitions(workspace_unif, 
+                           workspace_best,
+                           buffer_size=buffer_size, 
+                           proportion=prop)
+        offline_agent = agent_constructor(cfg)
+        offline_run(offline_agent, rb_mixed)
+        performances.append(np.array(offline_agent.eval_rewards))
+    if plot:
+        plot_perf_vs_rb_composition(proportions, performances)
+    return performances
