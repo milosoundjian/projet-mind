@@ -623,7 +623,7 @@ def run_td3(td3: TD3):
 def run_td3_offline(td3: TD3, fixed_rb: ReplayBuffer):
 
     # set replay buffer once and don't change it afterwards
-    td3.replay_buffer = fixed_rb # TODO: any reason to but it as argument? is it used somewhere else?
+    td3.replay_buffer = fixed_rb # TODO: any reason to put it as attribute? is it used somewhere else?
 
     # NOTE: only a part of `iter_replay_buffers` code is taken,
     # so that replay buffer stays the same
@@ -829,6 +829,7 @@ def mix_transitions(workspace1: Workspace, workspace2: Workspace,buffer_size: in
     :param proportion: Proportion of transitions coming from first workspace
     :type proportion: float
     '''
+    # TODO: add possibility to set seed
     size1 = int(buffer_size*proportion)
     size2 = buffer_size - size1
     transitions1 = get_random_transitions(workspace1, size1)
