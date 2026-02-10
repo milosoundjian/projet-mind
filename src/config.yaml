@@ -1,5 +1,4 @@
-
-bbrl_examples: # configurations from BBRL tutorial
+bbrl_examples: # configurations from osigaud tutorials
 
   dqn:
     base_dir: ${gym_env.env_name}/dqn-S${algorithm.seed}_${current_time:}
