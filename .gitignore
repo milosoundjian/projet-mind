@@ -1,4 +1,5 @@
 local/
+experiments/notebooks/outputs/
 
 .vscode/
 
@@ -236,4 +237,3 @@ Icon[
 Network Trash Folder
 Temporary Items
 .apdisk
-src/outputs/

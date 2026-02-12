@@ -1,0 +1,154 @@
+dqn:
+  base_dir: ${gym_env.env_name}/dqn-S${algorithm.seed}_${current_time:}
+
+  # `collect_stats` is True: we keep the cumulated reward for all
+  # evaluation episodes
+  collect_stats: true
+  save_best: false
+
+  algorithm:
+    seed: 4
+    max_grad_norm: 0.5
+    epsilon: 0.02
+    n_envs: 8
+    n_steps: 32
+    n_updates: 32
+    eval_interval: 2000
+    learning_starts: 5000
+    nb_evals: 10
+    buffer_size: 100000
+    batch_size: 256
+    target_critic_update: 1000
+    max_epochs: 3000
+    discount_factor: 0.99
+    architecture:
+      hidden_size: [256, 256]
+
+  gym_env:
+    env_name: CartPole-v1
+
+  optimizer:
+    classname: torch.optim.Adam
+    lr: 1e-3
+
+ddqn:
+
+  base_dir: ${gym_env.env_name}/double-dqn-S${algorithm.seed}_${current_time:}
+
+  collect_stats: true
+  save_best: false
+
+  algorithm:
+    seed: 3
+    max_grad_norm: 0.5
+    epsilon: 0.02
+    n_envs: 8
+    n_steps: 32
+    n_updates: 32
+    eval_interval: 2000
+    learning_starts: 5000
+    nb_evals: 10
+    buffer_size: 100000
+    batch_size: 256
+    target_critic_update: 1000
+    max_epochs: 3000
+    discount_factor: 0.99
+    architecture:
+      hidden_size: [128, 128]
+
+  gym_env:
+    env_name: CartPole-v1
+
+  optimizer:
+    classname: torch.optim.Adam
+    lr: 1e-3
+
+ddpg:
+
+  save_best: false
+  base_dir: ${gym_env.env_name}/ddpg-S${algorithm.seed}_${current_time:}
+  collect_stats: true
+
+  # Set to true to have an insight on the learned policy
+  # (but slows down the evaluation a lot!)
+  plot_agents: true
+
+  algorithm:
+    seed: 1
+    max_grad_norm: 0.5
+    n_envs: 1
+    n_steps: 100
+    nb_evals: 10
+    discount_factor: 0.98
+    buffer_size: 200000
+    batch_size: 64
+    tau_target: 0.05
+    eval_interval: 2000
+    max_epochs: 11000
+
+    # Minimum number of transitions before learning starts
+    learning_starts: 10000
+
+    action_noise: 0.1
+    architecture:
+      actor_hidden_size: [400, 300]
+      critic_hidden_size: [400, 300]
+
+  gym_env:
+    env_name: CartPoleContinuous-v1
+
+  actor_optimizer:
+    classname: torch.optim.Adam
+    lr: 1e-3
+
+  critic_optimizer:
+    classname: torch.optim.Adam
+    lr: 1e-3
+
+td3:
+  save_best: false
+  base_dir: ${gym_env.env_name}/td3-S${algorithm.seed}_${current_time:}
+  collect_stats: true
+
+  # Set to true to have an insight on the learned policy
+  # (but slows down the evaluation a lot!)
+  plot_agents: true
+
+  algorithm:
+    seed: 1
+    max_grad_norm: 0.5
+    n_envs: 1
+    n_steps: 100
+    nb_evals: 10
+    discount_factor: 0.98
+    buffer_size: 200000
+    batch_size: 64
+    tau_target: 0.05
+    eval_interval: 2000
+    max_epochs: 11000
+
+    # Minimum number of transitions before learning starts
+    learning_starts: 10000
+
+    action_noise: 0.1
+
+    # TD3 SPECIFIC
+    policy_delay: 2
+    target_policy_noise: 0.2
+    target_policy_noise_clip: 0.5
+
+    architecture:
+      actor_hidden_size: [400, 300]
+      critic_hidden_size: [400, 300]
+
+  gym_env:
+    env_name: CartPoleContinuous-v1
+
+  actor_optimizer:
+    classname: torch.optim.Adam
+    lr: 1e-3
+
+  critic_optimizer:
+    classname: torch.optim.Adam
+    lr: 1e-3
+    
