@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 
+import gymnasium as gym
+
 from bbrl.agents import Agent
 from bbrl_utils.nn import build_mlp
 
@@ -126,4 +128,16 @@ class AddNoiseClip(Agent):
         act = self.get(("action", t))
         dist = Normal(act, self.sigma)
         action = torch.clip(dist.sample(),-self.clip, +self.clip)
+        self.set(("action", t), action)
+
+
+class RandomWalkAgent(Agent):
+    
+    def __init__(self, env_name):
+        super().__init__()
+        self.env = gym.make(env_name) 
+
+    def forward(self, t: int):
+        n_env = self.workspace.batch_size()
+        action = torch.tensor([self.env.action_space.sample() for _ in range(n_env) ], dtype=torch.float32)
         self.set(("action", t), action)
