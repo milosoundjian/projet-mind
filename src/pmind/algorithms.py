@@ -123,3 +123,48 @@ class TD3(EpochBasedAlgo):
         self.critic_optimizer_2 = setup_optimizer(cfg.critic_optimizer, self.critic_2)
 
         self.last_policy_update_step = 0
+
+
+class OfflineTD3(EpochBasedAlgo):
+    # Just as TD3 but without noise
+    def __init__(self, cfg):
+        super().__init__(cfg)
+
+
+        # Define the agents and optimizers for TD3
+
+        # ADAPTED FROM DDPG:
+
+        obs_size, act_size = self.train_env.get_obs_and_actions_sizes()
+
+        self.critic_1 = ContinuousQAgent(
+            obs_size, cfg.algorithm.architecture.critic_hidden_size, act_size
+        ).with_prefix("critic_1/")
+        self.critic_2 = copy.deepcopy(self.critic_1).with_prefix("critic_2/")
+        self.target_critic_1 = copy.deepcopy(self.critic_1).with_prefix("target-critic_1/")
+        self.target_critic_2 = copy.deepcopy(self.critic_1).with_prefix("target-critic_2/")
+
+        self.actor = ContinuousDeterministicActor(
+            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
+        )
+        self.target_actor = copy.deepcopy(self.actor)
+
+        self.train_policy = Agents(self.actor)
+        self.eval_policy = self.actor # NOTE: pure exploitation for evaluation
+
+        # TD3 SPECIFIC
+
+        self.t_q_agent_1 = TemporalAgent(self.critic_1)
+        self.t_target_q_agent_1 = TemporalAgent(self.target_critic_1)
+        self.t_q_agent_2 = TemporalAgent(self.critic_2)
+        self.t_target_q_agent_2 = TemporalAgent(self.target_critic_2)
+        self.t_actor_agent = TemporalAgent(self.actor)
+        self.t_target_actor_agent = TemporalAgent(Agents(self.target_actor))
+
+
+        # Configure the optimizer
+        self.actor_optimizer = setup_optimizer(cfg.actor_optimizer, self.actor)
+        self.critic_optimizer_1 = setup_optimizer(cfg.critic_optimizer, self.critic_1)
+        self.critic_optimizer_2 = setup_optimizer(cfg.critic_optimizer, self.critic_2)
+
+        self.last_policy_update_step = 0
