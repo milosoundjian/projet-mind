@@ -14,20 +14,24 @@ from bbrl.workspace import Workspace
 from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl_utils.algorithms import EpochBasedAlgo
 
+from tqdm import trange
+
 from pmind.visualization import plot_perf_vs_rb_composition
 
-def collect_policy_transitions(policy_agent:Agent, env_name: str, buffer_size: int):
-    
+
+def collect_policy_transitions(policy_agent: Agent, env_name: str, buffer_size: int):
+
     # TODO: is it okay to use only one parallel env?
-    gym_agent = ParallelGymAgent(partial(make_env, env_name=env_name, autoreset=True), 
-                            num_envs=1) # TODO: .seed(seed)
-    
+    gym_agent = ParallelGymAgent(
+        partial(make_env, env_name=env_name, autoreset=True), num_envs=1
+    )  # TODO: .seed(seed)
+
     t_agents = TemporalAgent(Agents(gym_agent, policy_agent))
-    workspace = Workspace() 
-    t_agents(workspace,t=0, n_steps=buffer_size)
+    workspace = Workspace()
+    t_agents(workspace, t=0, n_steps=buffer_size)
 
     while workspace.time_size() // 2 < buffer_size:
-        t_agents(workspace,t=workspace.time_size(), n_steps=1000)
+        t_agents(workspace, t=workspace.time_size(), n_steps=1000)
 
     transitions = workspace.get_transitions()
     rb = ReplayBuffer(buffer_size)
@@ -36,20 +40,23 @@ def collect_policy_transitions(policy_agent:Agent, env_name: str, buffer_size: i
 
 
 class UniformWrapper(Wrapper):
-    
     def uniform_reset(self):
         self.reset()
         self.state = self.unwrapped.state = self.observation_space.sample()
         return self.state
+
     def uniform_action(self):
         # TODO: doesn't work with "Pendulum-v1"
         return self.action_space.sample()
+
     # TODO: set seed
-    # TODO: adapt these methods for environments with trickier states 
+    # TODO: adapt these methods for environments with trickier states
     # e.g. "LunarLander-v3"
-    
+
+
 def format_tensor(item, dtype=torch.float32):
     return torch.tensor(item, dtype=dtype).unsqueeze(0)
+
 
 def collect_uniform_transitions(env_name: str, buffer_size: int):
 
@@ -66,7 +73,6 @@ def collect_uniform_transitions(env_name: str, buffer_size: int):
     env = UniformWrapper(gym.make(env_name))
     rb = ReplayBuffer(buffer_size)
     for _ in range(buffer_size):
-
         workspace = Workspace()
 
         # TODO: what to do in case when we teleport into a terminal state directly?
@@ -80,12 +86,11 @@ def collect_uniform_transitions(env_name: str, buffer_size: int):
 
         observation, reward, terminated, truncated, _ = env.step(action)
 
-
-        workspace.set("env/env_obs", 1,  format_tensor(observation))
+        workspace.set("env/env_obs", 1, format_tensor(observation))
         workspace.set("env/terminated", 1, format_tensor(terminated, torch.bool))
         workspace.set("env/truncated", 1, format_tensor(truncated, torch.bool))
-        workspace.set("env/done", 1,  format_tensor(terminated or truncated, torch.bool))
-        workspace.set("env/reward", 1,format_tensor(reward))
+        workspace.set("env/done", 1, format_tensor(terminated or truncated, torch.bool))
+        workspace.set("env/reward", 1, format_tensor(reward))
         workspace.set("env/cumulated_reward", 1, format_tensor(reward))
         next_action = env.action_space.sample()
         workspace.set("action", 1, format_tensor(next_action))
@@ -94,12 +99,14 @@ def collect_uniform_transitions(env_name: str, buffer_size: int):
         rb.put(workspace.get_transitions())
     return rb
 
-def collect_uniform_transitions_2(env: gym.Env, size: int = 100_000):
+
+def collect_uniform_transitions_2(env_name: str, size: int = 100_000):
+    env = gym.make(env_name)
     # Set up the replay buffer
     rb = ReplayBuffer(size)
     rb.variables = {}
     rb.variables["env/env_obs"] = torch.empty(
-        [size, env.observation_space.shape[0], 2], dtype=torch.float32
+        [size, 2, env.observation_space.shape[0]], dtype=torch.float32
     )
     rb.variables["env/terminated"] = torch.empty([size, 2], dtype=torch.bool)
     rb.variables["env/truncated"] = torch.empty([size, 2], dtype=torch.bool)
@@ -107,9 +114,9 @@ def collect_uniform_transitions_2(env: gym.Env, size: int = 100_000):
     rb.variables["env/reward"] = torch.empty([size, 2], dtype=torch.float32)
     rb.variables["env/cumulated_reward"] = torch.empty([size, 2], dtype=torch.float32)
     rb.variables["env/timestep"] = torch.empty([size, 2], dtype=torch.int64)
-    rb.variables["action"] = torch.empty([size, env.action_space.shape[0], 2])
+    rb.variables["action"] = torch.empty([size, 2, env.action_space.shape[0]])
 
-    for i in range(size):
+    for i in trange(size):
         env.reset()
 
         state_0 = env.observation_space.sample()
@@ -117,32 +124,37 @@ def collect_uniform_transitions_2(env: gym.Env, size: int = 100_000):
         action = env.action_space.sample()
         state_1, reward, terminated, truncated, _ = env.step(action)
 
-        rb.variables["env/env_obs"][i, :, 0] = torch.tensor(state_0)
-        rb.variables["env/env_obs"][i, :, 1] = torch.tensor(state_1)
+        rb.variables["env/env_obs"][i, 0, :] = torch.tensor(state_0)
+        rb.variables["env/env_obs"][i, 1, :] = torch.tensor(state_1)
 
-        rb.variables["env/truncated"][i, 0] = torch.tensor(truncated)
+        rb.variables["env/truncated"][i, 0] = torch.tensor(False)
         rb.variables["env/truncated"][i, 1] = torch.tensor(truncated)
 
-        rb.variables["env/terminated"][i, 0] = torch.tensor(truncated)
+        rb.variables["env/terminated"][i, 0] = torch.tensor(False)
         rb.variables["env/terminated"][i, 1] = torch.tensor(truncated)
 
-        rb.variables["env/reward"][i, 0] = torch.tensor(reward)
+        rb.variables["env/reward"][i, 0] = torch.tensor(0.0)
         rb.variables["env/reward"][i, 1] = torch.tensor(reward)
 
-        rb.variables["env/cumulated_reward"][i, 0] = torch.tensor(reward)
+        rb.variables["env/cumulated_reward"][i, 0] = torch.tensor(0.0)
         rb.variables["env/cumulated_reward"][i, 1] = torch.tensor(reward)
 
         rb.variables["env/timestep"][i, 0] = torch.tensor(1)
         rb.variables["env/timestep"][i, 1] = torch.tensor(1)
 
-        rb.variables["action"][i, :, 0] = torch.tensor(action)
-        rb.variables["action"][i, :, 1] = torch.tensor(action)
+        rb.variables["action"][i, 0, :] = torch.tensor(action)
+        rb.variables["action"][i, 1, :] = torch.tensor(action)
+
+    rb.is_full = True
 
     return rb
 
-def mix_transitions(rb1: ReplayBuffer, rb2: ReplayBuffer,buffer_size: int, proportion: float):
+
+def mix_transitions(
+    rb1: ReplayBuffer, rb2: ReplayBuffer, buffer_size: int, proportion: float
+):
     # TODO: add possibility to set seed
-    size1 = int(buffer_size*proportion)
+    size1 = int(buffer_size * proportion)
     size2 = buffer_size - size1
     transitions1 = rb1.get_shuffled(size1)
     transitions2 = rb2.get_shuffled(size2)
@@ -151,22 +163,23 @@ def mix_transitions(rb1: ReplayBuffer, rb2: ReplayBuffer,buffer_size: int, propo
     rb_mixed.put(transitions2)
     return rb_mixed
 
-def test_rb_compositions(rb_unif: ReplayBuffer,
-                         rb_best: ReplayBuffer,
-                        buffer_size: int,
-                        proportions: list,
-                        agent_constructor: Type[EpochBasedAlgo], 
-                        cfg,
-                        offline_run: Callable[[EpochBasedAlgo, ReplayBuffer], None],
-                        plot = True
-                        ):
+
+def test_rb_compositions(
+    rb_unif: ReplayBuffer,
+    rb_best: ReplayBuffer,
+    buffer_size: int,
+    proportions: list,
+    agent_constructor: Type[EpochBasedAlgo],
+    cfg,
+    offline_run: Callable[[EpochBasedAlgo, ReplayBuffer], None],
+    plot=True,
+):
     # TODO: do multiple seeds and then average!!
     performances = []
     for prop in proportions:
-        rb_mixed = mix_transitions(rb_unif, 
-                           rb_best,
-                           buffer_size=buffer_size, 
-                           proportion=prop)
+        rb_mixed = mix_transitions(
+            rb_unif, rb_best, buffer_size=buffer_size, proportion=prop
+        )
         offline_agent = agent_constructor(cfg)
         offline_run(offline_agent, rb_mixed)
         performances.append(np.array(offline_agent.eval_rewards))
