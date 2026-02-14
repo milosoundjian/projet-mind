@@ -94,6 +94,51 @@ def collect_uniform_transitions(env_name: str, buffer_size: int):
         rb.put(workspace.get_transitions())
     return rb
 
+def collect_uniform_transitions_2(env: gym.Env, size: int = 100_000):
+    # Set up the replay buffer
+    rb = ReplayBuffer(size)
+    rb.variables = {}
+    rb.variables["env/env_obs"] = torch.empty(
+        [size, env.observation_space.shape[0], 2], dtype=torch.float32
+    )
+    rb.variables["env/terminated"] = torch.empty([size, 2], dtype=torch.bool)
+    rb.variables["env/truncated"] = torch.empty([size, 2], dtype=torch.bool)
+    rb.variables["env/done"] = torch.empty([size, 2], dtype=torch.bool)
+    rb.variables["env/reward"] = torch.empty([size, 2], dtype=torch.float32)
+    rb.variables["env/cumulated_reward"] = torch.empty([size, 2], dtype=torch.float32)
+    rb.variables["env/timestep"] = torch.empty([size, 2], dtype=torch.int64)
+    rb.variables["action"] = torch.empty([size, env.action_space.shape[0], 2])
+
+    for i in range(size):
+        env.reset()
+
+        state_0 = env.observation_space.sample()
+        env.unwrapped.state = state_0
+        action = env.action_space.sample()
+        state_1, reward, terminated, truncated, _ = env.step(action)
+
+        rb.variables["env/env_obs"][i, :, 0] = torch.tensor(state_0)
+        rb.variables["env/env_obs"][i, :, 1] = torch.tensor(state_1)
+
+        rb.variables["env/truncated"][i, 0] = torch.tensor(truncated)
+        rb.variables["env/truncated"][i, 1] = torch.tensor(truncated)
+
+        rb.variables["env/terminated"][i, 0] = torch.tensor(truncated)
+        rb.variables["env/terminated"][i, 1] = torch.tensor(truncated)
+
+        rb.variables["env/reward"][i, 0] = torch.tensor(reward)
+        rb.variables["env/reward"][i, 1] = torch.tensor(reward)
+
+        rb.variables["env/cumulated_reward"][i, 0] = torch.tensor(reward)
+        rb.variables["env/cumulated_reward"][i, 1] = torch.tensor(reward)
+
+        rb.variables["env/timestep"][i, 0] = torch.tensor(1)
+        rb.variables["env/timestep"][i, 1] = torch.tensor(1)
+
+        rb.variables["action"][i, :, 0] = torch.tensor(action)
+        rb.variables["action"][i, :, 1] = torch.tensor(action)
+
+    return rb
 
 def mix_transitions(rb1: ReplayBuffer, rb2: ReplayBuffer,buffer_size: int, proportion: float):
     # TODO: add possibility to set seed
