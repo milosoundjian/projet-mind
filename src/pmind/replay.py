@@ -9,6 +9,8 @@ from bbrl.workspace import Workspace
 from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl_utils.algorithms import EpochBasedAlgo
 
+from pmind.visualization import plot_perf_vs_rb_composition
+
 def get_gym_agent(env_name:str,num_envs:int, seed:int=42):
     '''
     Get multiple gymnasium environments as ParallelGymAgent with autoreset=True
