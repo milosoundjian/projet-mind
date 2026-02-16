@@ -406,3 +406,9 @@ def run_td3_offline(td3: TD3, fixed_rb: ReplayBuffer):
                     td3.cfg.gym_env.env_name,
                     stochastic=False,
                 )
+
+def load_trained_agents(env_name, rewards):
+    trained_agents = {}
+    for k in rewards:
+        trained_agents[k] = torch.load(f"../models/{env_name}-model-{k}.pt", weights_only=False)
+    return trained_agents

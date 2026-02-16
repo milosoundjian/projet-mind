@@ -38,6 +38,12 @@ def collect_policy_transitions(policy_agent: Agent, env_name: str, buffer_size: 
     rb.put(transitions)
     return rb
 
+def load_trained_agents(env_name, rewards):
+    trained_agents = {}
+    for k in rewards:
+        trained_agents[k] = torch.load(f"../models/{env_name}-model-{k}.pt", weights_only=False)
+    return trained_agents
+
 
 class UniformWrapper(Wrapper):
     def uniform_reset(self):
@@ -167,23 +173,21 @@ def mix_transitions(
 
 def test_rb_compositions(
     rb_unif: ReplayBuffer,
-    rb_best: ReplayBuffer,
+    rb_exploit: ReplayBuffer,
     buffer_size: int,
     proportions: list,
     agent_constructor: Type[EpochBasedAlgo],
     cfg,
     offline_run: Callable[[EpochBasedAlgo, ReplayBuffer], None],
-    plot=True,
 ):
     # TODO: do multiple seeds and then average!!
     performances = []
     for prop in proportions:
         rb_mixed = mix_transitions(
-            rb_unif, rb_best, buffer_size=buffer_size, proportion=prop
+            rb_unif, rb_exploit, buffer_size=buffer_size, proportion=prop
         )
         offline_agent = agent_constructor(cfg)
         offline_run(offline_agent, rb_mixed)
         performances.append(np.array(offline_agent.eval_rewards))
-    if plot:
-        plot_perf_vs_rb_composition(proportions, performances)
+        
     return performances
