@@ -38,14 +38,8 @@ def collect_policy_transitions(policy_agent: Agent, env_name: str, buffer_size: 
     rb.put(transitions)
     return rb
 
-def load_trained_agents(env_name, rewards):
-    trained_agents = {}
-    for k in rewards:
-        trained_agents[k] = torch.load(f"../models/{env_name}-model-{k}.pt", weights_only=False)
-    return trained_agents
 
-
-class UniformWrapper(Wrapper):
+class UniformExplorationWrapper(Wrapper):
     def uniform_reset(self):
         self.reset()
         self.state = self.unwrapped.state = self.observation_space.sample()
@@ -60,12 +54,11 @@ class UniformWrapper(Wrapper):
     # e.g. "LunarLander-v3"
 
 
-def format_tensor(item, dtype=torch.float32):
-    return torch.tensor(item, dtype=dtype).unsqueeze(0)
-
 # Vlad's version: 
-# def collect_uniform_transitions(env_name: str, buffer_size: int):
 
+# def collect_uniform_transitions(env_name: str, buffer_size: int):
+#     def format_tensor(item, dtype=torch.float32):
+#         return torch.tensor(item, dtype=dtype).unsqueeze(0)
 #     # NOTE: expected buffer composition and types:
 #     # env/env_obs : torch.float32
 #     # env/terminated : torch.bool
@@ -76,7 +69,7 @@ def format_tensor(item, dtype=torch.float32):
 #     # env/timestep : torch.int64
 #     # action : torch.float32
 
-#     env = UniformWrapper(gym.make(env_name))
+#     env = UniformExplorationWrapper(gym.make(env_name))
 #     rb = ReplayBuffer(buffer_size)
 #     for _ in range(buffer_size):
 #         workspace = Workspace()
@@ -107,7 +100,7 @@ def format_tensor(item, dtype=torch.float32):
 
 
 def collect_uniform_transitions(env_name: str, buffer_size: int = 100_000):
-    env = UniformWrapper(gym.make(env_name))
+    env = UniformExplorationWrapper(gym.make(env_name))
     # Set up the replay buffer
     rb = ReplayBuffer(buffer_size)
     rb.variables = {}
@@ -158,9 +151,13 @@ def collect_uniform_transitions(env_name: str, buffer_size: int = 100_000):
 
 
 def mix_transitions(
-    rb1: ReplayBuffer, rb2: ReplayBuffer, buffer_size: int, proportion: float
+    rb1: ReplayBuffer, 
+    rb2: ReplayBuffer, 
+    buffer_size: int, 
+    proportion: float,
+    seed = int
 ):
-    # TODO: add possibility to set seed
+    # TODO: set seed actually!
     size1 = int(buffer_size * proportion)
     size2 = buffer_size - size1
     transitions1 = rb1.get_shuffled(size1)
@@ -179,15 +176,29 @@ def test_rb_compositions(
     agent_constructor: Type[EpochBasedAlgo],
     cfg,
     offline_run: Callable[[EpochBasedAlgo, ReplayBuffer], None],
+    seeds = [1],
 ):
-    # TODO: do multiple seeds and then average!!
     performances = []
     for prop in proportions:
-        rb_mixed = mix_transitions(
-            rb_unif, rb_exploit, buffer_size=buffer_size, proportion=prop
-        )
-        offline_agent = agent_constructor(cfg)
-        offline_run(offline_agent, rb_mixed)
-        performances.append(np.array(offline_agent.eval_rewards))
+        algo = cfg.algorithm
+        # TODO: actually less time-points, why???
+        max_nb_timepoints = int(algo.n_steps * algo.max_epochs / algo.eval_interval)
+        nb_envs = algo.nb_evals
+
+        all_evals = np.empty((max_nb_timepoints,nb_envs, len(seeds)))
+
+        for i, seed in enumerate(seeds):
+            rb_mixed = mix_transitions(
+                rb_unif, rb_exploit, buffer_size=buffer_size, proportion=prop, seed = seed
+            )
+            cfg.algorithm.seed = seed
+            offline_agent = agent_constructor(cfg)
+            offline_run(offline_agent, rb_mixed)
+            current_evals = np.array(offline_agent.eval_rewards)
+            nb_timepoints = current_evals.shape[0]
+            all_evals[:nb_timepoints,:,i] = current_evals
+            max_nb_timepoints = np.minimum(nb_timepoints, max_nb_timepoints)
+
+        performances.append(all_evals[:max_nb_timepoints,:,:])
         
-    return performances
+    return performances # time-point x env x seed

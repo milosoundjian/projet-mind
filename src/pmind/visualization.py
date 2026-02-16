@@ -2,9 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def plot_perf_vs_rb_composition(proportions, performances, last_n=1, label=None):
-    means = np.array([perf[-last_n:].mean().item() for perf in performances])
+    # proportions are timepoint x env x seed
+    # average over seeds and then pool mean and std by environments and timepoints
+    means = np.array([perf.mean(-1)[-last_n:].mean().item() for perf in performances])
      # TODO: do a better std agglomeration
-    stds = np.array([perf[-last_n:].std().item() for perf in performances])
+    stds = np.array([perf.mean(-1)[-last_n:].std().item() for perf in performances])
 
     plt.plot(proportions, means, label=label)
     plt.fill_between(
