@@ -134,7 +134,9 @@ def run_ddpg(ddpg: DDPG):
                     stochastic=False,
                 )
 
-def run_td3(td3: TD3):
+def run_td3(td3: TD3, save_model_at_rewards=None):
+    policies = {}
+    
     for rb in td3.iter_replay_buffers():
         rb_workspace = rb.get_shuffled(td3.cfg.algorithm.batch_size)
 
@@ -239,6 +241,12 @@ def run_td3(td3: TD3):
 
         # Evaluate the actor if needed
         if td3.evaluate():
+            # Here we are hitting a new score
+            if save_model_at_rewards != [] and save_model_at_rewards[0] <= td3.best_reward:
+                save_model_at_rewards.pop(0)
+                print(f"Saving w/ reward: {td3.best_reward}")
+                td3.best_policy.save_model(f"../models/{td3.cfg.gym_env['env_name']}-model-{int(td3.best_reward)}.pt")
+                policies[int(td3.best_reward)] = td3.best_policy
             if td3.cfg.plot_agents:
                 plot_policy(
                     td3.actor,
@@ -248,6 +256,9 @@ def run_td3(td3: TD3):
                     td3.cfg.gym_env.env_name,
                     stochastic=False,
                 )
+        
+    return policies
+
 
 def run_td3_offline(td3: TD3, fixed_rb: ReplayBuffer):
 
