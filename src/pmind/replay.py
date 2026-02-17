@@ -42,7 +42,8 @@ def collect_policy_transitions(policy_agent: Agent, env_name: str, buffer_size: 
 class UniformExplorationWrapper(Wrapper):
     def uniform_reset(self):
         self.reset()
-        self.state = self.unwrapped.state = self.observation_space.sample()
+        # TODO: = self.unwrapped.state as well
+        self.state = self.observation_space.sample()
         return self.state
 
     def uniform_action(self):
@@ -56,7 +57,7 @@ class UniformExplorationWrapper(Wrapper):
 
 # Vlad's version: 
 
-# def collect_uniform_transitions(env_name: str, buffer_size: int):
+# def collect_uniform_transitions_2(env_name: str, buffer_size: int):
 #     def format_tensor(item, dtype=torch.float32):
 #         return torch.tensor(item, dtype=dtype).unsqueeze(0)
 #     # NOTE: expected buffer composition and types:
@@ -113,6 +114,7 @@ def collect_uniform_transitions(env_name: str, buffer_size: int = 100_000):
     rb.variables["env/reward"] = torch.empty([buffer_size, 2], dtype=torch.float32)
     rb.variables["env/cumulated_reward"] = torch.empty([buffer_size, 2], dtype=torch.float32)
     rb.variables["env/timestep"] = torch.empty([buffer_size, 2], dtype=torch.int64)
+    # TODO: consider discrete case for action space
     rb.variables["action"] = torch.empty([buffer_size, 2, env.action_space.shape[0]])
 
     for i in trange(buffer_size):
@@ -201,4 +203,4 @@ def test_rb_compositions(
 
         performances.append(all_evals[:max_nb_timepoints,:,:])
         
-    return performances # time-point x env x seed
+    return performances # proportions x time-point x env x seed

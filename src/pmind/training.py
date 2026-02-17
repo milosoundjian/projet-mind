@@ -8,6 +8,8 @@ from bbrl.utils.replay_buffer import ReplayBuffer
 from pmind.algorithms import DQN, DDPG, TD3
 from pmind.losses import compute_critic_loss, compute_actor_loss
 
+from copy import deepcopy
+
 def run_dqn(dqn: DQN, compute_critic_loss):
     for rb in dqn.iter_replay_buffers():
         for _ in range(dqn.cfg.algorithm.n_updates):
@@ -136,6 +138,8 @@ def run_ddpg(ddpg: DDPG):
 
 def run_td3(td3: TD3, save_model_at_rewards=None):
     policies = {}
+
+    save_model_at_rewards = deepcopy(save_model_at_rewards)
     
     for rb in td3.iter_replay_buffers():
         rb_workspace = rb.get_shuffled(td3.cfg.algorithm.batch_size)
@@ -256,6 +260,9 @@ def run_td3(td3: TD3, save_model_at_rewards=None):
                     td3.cfg.gym_env.env_name,
                     stochastic=False,
                 )
+                
+        if save_model_at_rewards == []:
+            break
         
     return policies
 
