@@ -98,7 +98,7 @@ class UniformExplorationWrapper(Wrapper):
                 break
             self.rejections += 1
         #TODO: is self.unwrapped.state = state necessary?
-        self.state = state
+        self.state = self.unwrapped.state = state
         return state
 
 
