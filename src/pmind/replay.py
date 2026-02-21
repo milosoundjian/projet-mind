@@ -1,5 +1,6 @@
 from functools import partial
 from typing import Callable, Type
+from enum import Enum
 
 import numpy as np
 
@@ -38,21 +39,74 @@ def collect_policy_transitions(policy_agent: Agent, env_name: str, buffer_size: 
     rb.put(transitions)
     return rb
 
+class SupportedEnv(Enum):
+    CARTPOLE = "ContinuousCartPoleEnv"
+    PENDULUM = "PendulumEnv"
+    MOUNTAINCAR = "Continuous_MountainCarEnv"
+    LUNARLANDER = "LunarLander"
+
 
 class UniformExplorationWrapper(Wrapper):
+    
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        self.env_type = SupportedEnv(env.unwrapped.__class__.__name__)
+        self.rejections = 0
+    
+    def is_valid_state(self, state):
+
+        # TODO:  verify validity conditions
+
+        if self.env_type == SupportedEnv.CARTPOLE:
+            x, x_dot, theta, theta_dot = state
+            x_threshold = 2.4
+            theta_threshold = 12 * np.pi / 180  # radians
+
+            if abs(x) > x_threshold:
+                return False
+            if abs(theta) > theta_threshold:
+                return False
+            return True
+        elif self.env_type == SupportedEnv.PENDULUM:
+            # never terminates
+            return True
+        elif self.env_type == SupportedEnv.MOUNTAINCAR:
+            position, velocity = state
+            goal_position = 0.45
+            if position >= goal_position:
+                return False
+            return True
+        elif self.env_type == SupportedEnv.LUNARLANDER:
+            x, y, x_dot, y_dot, angle, angle_dot, left_leg, right_leg = state
+
+            # Reject clearly aberrant states:
+            # out of bounds
+            if abs(x) > 1.0:
+                return False
+            # underground
+            if y <= 0:
+                return False
+            return True
+    
+
     def uniform_reset(self):
+        # TODO: adapt this method for "LunarLander-v3" - observation != state there
         self.reset()
-        # TODO: = self.unwrapped.state as well
-        self.state = self.observation_space.sample()
-        return self.state
+        while True:
+            state = self.observation_space.sample()
+            if self.is_valid_state(state):
+                break
+            self.rejections += 1
+        #TODO: is self.unwrapped.state = state necessary?
+        self.state = state
+        return state
+
 
     def uniform_action(self):
-        # TODO: doesn't work with "Pendulum-v1"
         return self.action_space.sample()
 
     # TODO: set seed
-    # TODO: adapt these methods for environments with trickier states
-    # e.g. "LunarLander-v3"
+    
 
 
 # Vlad's version: 
@@ -100,7 +154,7 @@ class UniformExplorationWrapper(Wrapper):
 #     return rb
 
 
-def collect_uniform_transitions(env_name: str, buffer_size: int = 100_000):
+def collect_uniform_transitions(env_name: str, buffer_size: int = 100_000, print_rejections = True):
     env = UniformExplorationWrapper(gym.make(env_name))
     # Set up the replay buffer
     rb = ReplayBuffer(buffer_size)
@@ -148,6 +202,9 @@ def collect_uniform_transitions(env_name: str, buffer_size: int = 100_000):
         rb.variables["action"][i, 1, :] = torch.zeros_like(torch.tensor(action)) # dummy
 
     rb.is_full = True
+
+    if print_rejections:
+        print(f"{env.rejections} of proposed states were rejected")
 
     return rb
 
