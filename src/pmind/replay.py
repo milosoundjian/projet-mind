@@ -55,7 +55,7 @@ class UniformExplorationWrapper(Wrapper):
     
     def is_valid_state(self, state):
 
-        # TODO:  verify validity conditions
+        # TODO:  verify validity conditions with Gymnasium pages on each env
 
         if self.env_type == SupportedEnv.CARTPOLE:
             x, x_dot, theta, theta_dot = state
@@ -72,7 +72,7 @@ class UniformExplorationWrapper(Wrapper):
             return True
         elif self.env_type == SupportedEnv.MOUNTAINCAR:
             position, velocity = state
-            goal_position = 0.45
+            goal_position = 0.5
             if position >= goal_position:
                 return False
             return True
@@ -98,7 +98,16 @@ class UniformExplorationWrapper(Wrapper):
                 break
             self.rejections += 1
         #TODO: is self.unwrapped.state = state necessary?
-        self.state = self.unwrapped.state = state
+        self.state = state
+        if self.env_type == SupportedEnv.PENDULUM:
+            # unwrapped state for pendulum is th, thdot,
+            # whereas the wrapper has state cos(th), sin(th), thdot
+            cos_th, sin_th, thdot = state
+            th = float(np.atan2(sin_th, cos_th))
+            self.unwrapped.state = th, thdot
+        else:
+            self.unwrapped.state = state
+
         return state
 
 

@@ -27,7 +27,7 @@ def dqn_compute_critic_loss(
     # compute maximal (next) Q, i.e. it is used for
     # BOTH next action selection and getting corresponding Q
     max_q = target_q_values[1].amax(-1).detach() 
-    target = reward[0] + gamma * max_q * must_bootstrap[1]
+    target = reward[1] + gamma * max_q * must_bootstrap[1]
 
     # Compute critic loss (no need to use must_bootstrap here since we are dealing with "full" transitions)
     mse = nn.MSELoss()
@@ -62,7 +62,7 @@ def ddqn_compute_critic_loss(
     # NOTE: equivalent to gather:
     # max_q = target_q_values[1, torch.arange(target_q_values.shape[1]), max_action].detach()
 
-    target = reward[0] + gamma * max_q * must_bootstrap[1]
+    target = reward[1] + gamma * max_q * must_bootstrap[1]
 
     # Compute critic loss (no need to use must_bootstrap here since we are dealing with "full" transitions)
     mse = nn.MSELoss()
@@ -93,7 +93,7 @@ def compute_critic_loss(
 
     # NOTE: target_q_values are computed based on critic of the next action
     # proposed by actor
-    target = reward[0] + gamma * target_q_values[1] * must_bootstrap[1]
+    target = reward[1] + gamma * target_q_values[1] * must_bootstrap[1]
 
     mse = nn.MSELoss()
     critic_loss = mse(target, q_values[0])

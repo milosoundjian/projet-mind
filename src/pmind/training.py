@@ -260,7 +260,7 @@ def run_td3(td3: TD3, save_model_at_rewards=None):
                     td3.cfg.gym_env.env_name,
                     stochastic=False,
                 )
-                
+
         if save_model_at_rewards == []:
             break
         
