@@ -85,7 +85,6 @@ class ContinuousDeterministicActor(Agent):
         action = self.model(obs)
         self.set(("action", t), action)
 
-
 class AddGaussianNoise(Agent):
     def __init__(self, sigma):
         super().__init__()
@@ -103,6 +102,7 @@ class AddOUNoise(Agent):
     """
 
     def __init__(self, std_dev, theta=0.15, dt=1e-2):
+        super().__init__()
         self.theta = theta
         self.std_dev = std_dev
         self.dt = dt
