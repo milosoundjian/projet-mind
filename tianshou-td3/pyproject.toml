@@ -1,0 +1,20 @@
+[project]
+name = "tianshou-td3"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "bbrl>=1.0.1",
+    "bbrl-gymnasium>=1.0.1",
+    "bbrl-utils>=1.1.1",
+    "ipykernel>=7.2.0",
+    "pandas>=3.0.1",
+    "pygame>=2.6.1",
+    "rliable>=1.2.0",
+    "scipy>=1.17.0",
+    "sensai>=1.6.0",
+    "setuptools==81.0.0",
+    "tensorboard>=2.20.0",
+    "tianshou>=2.0.0",
+]
