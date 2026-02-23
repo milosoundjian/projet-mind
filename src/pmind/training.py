@@ -219,6 +219,7 @@ def run_td3(td3: TD3, save_model_at_rewards=None):
 
 
         # Gradient step (actor)
+        td3.logger.add_log("actor_loss", actor_loss, td3.nb_steps)
         td3.actor_optimizer.zero_grad()
         actor_loss.backward()
         torch.nn.utils.clip_grad_norm_(
@@ -283,6 +284,7 @@ def run_td3_offline(td3: TD3, fixed_rb: ReplayBuffer):
         td3.train_agent(
             train_workspace,
             t=0,
+            # TODO: or td3.cfg.algorithm.n_steps?
             n_steps=td3.cfg.algorithm.n_steps+1,
             stochastic=True,
         )

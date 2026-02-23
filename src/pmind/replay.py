@@ -250,6 +250,7 @@ def test_rb_compositions(
     for prop in proportions:
         algo = cfg.algorithm
         # TODO: actually less time-points, why???
+        # TODO: maybe eval happens once each n_steps? epoch_size is not n_steps I think
         max_nb_timepoints = int(algo.n_steps * algo.max_epochs / algo.eval_interval)
         nb_envs = algo.nb_evals
 

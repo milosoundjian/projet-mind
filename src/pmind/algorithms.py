@@ -11,6 +11,7 @@ from pmind.agents import (
     EGreedyActionSelector,
     ArgmaxActionSelector,
     AddGaussianNoise,
+    AddOUNoise,
     AddNoiseClip,
 )
 
@@ -101,7 +102,8 @@ class TD3(EpochBasedAlgo):
         self.target_actor = copy.deepcopy(self.actor)
 
         # As an alternative, you can use `AddOUNoise`
-        noise_agent = AddGaussianNoise(cfg.algorithm.action_noise)
+        # noise_agent = AddGaussianNoise(cfg.algorithm.action_noise) 
+        noise_agent = AddOUNoise(cfg.algorithm.action_noise)
 
         self.train_policy = Agents(self.actor, noise_agent)
         self.eval_policy = self.actor # NOTE: pure exploitation for evaluation
