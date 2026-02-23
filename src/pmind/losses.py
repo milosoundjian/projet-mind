@@ -93,10 +93,12 @@ def compute_critic_loss(
 
     # NOTE: target_q_values are computed based on critic of the next action
     # proposed by actor
+    # TODO: q_values of wrong shape! (1, B) apparently, only 1st time point is passed
+    # print(f"Critic q_vals: {q_values.shape}")
     target = reward[1] + gamma * target_q_values[1] * must_bootstrap[1]
 
     mse = nn.MSELoss()
-    critic_loss = mse(target, q_values[0])
+    critic_loss = mse(target, q_values) # TODO: q_values instead of q_values[0]?
 
     return critic_loss
 
@@ -106,4 +108,7 @@ def compute_actor_loss(q_values):
     :param q_values: The q-values (shape 2xB)
     :return: A scalar (the loss)
     """
-    return - q_values[0].mean() # start or end of transition, or both?
+    # TODO: q_values of wrong shape! (1, B) apparently, only 1st time point is passed
+    # print(f"Actor q_vals: {q_values.shape}")
+    # TODO: q_values instead of q_values[0]?
+    return - q_values.mean() # start or end of transition, or both?
