@@ -137,6 +137,8 @@ def run_ddpg(ddpg: DDPG):
                 )
 
 def run_td3(td3: TD3, save_model_at_rewards=None):
+    print("`run_td3` deprecated please use the `train` function of TD3")
+    
     policies = {}
 
     save_model_at_rewards = deepcopy(save_model_at_rewards)
@@ -269,6 +271,7 @@ def run_td3(td3: TD3, save_model_at_rewards=None):
 
 
 def run_td3_offline(td3: TD3, fixed_rb: ReplayBuffer):
+    print("`run_td3_offline` deprecated please use the `train` function of TD3")
 
     # set replay buffer once and don't change it afterwards
     td3.replay_buffer = fixed_rb # TODO: any reason to put it as attribute? is it used somewhere else?

@@ -46,7 +46,7 @@ environments:
     <<: *default_td3
     gym_env:
       env_name: CartPoleContinuous-v1
-  
+
   Pendulum-v1:
     <<: *default_td3
     gym_env:
@@ -62,8 +62,6 @@ environments:
       target_policy_noise_clip: 0.5
       batch_size: 256
 
-
-  
   MountainCarContinuous-v0:
     <<: *default_td3
     gym_env:
@@ -80,10 +78,7 @@ environments:
       target_policy_noise_clip: 0.5
       batch_size: 256
 
-  
   LunarLanderContinuous-v3:
     <<: *default_td3
     gym_env:
       env_name: LunarLanderContinuous-v3
-
-
