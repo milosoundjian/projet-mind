@@ -86,7 +86,7 @@ class DDPG(EpochBasedAlgo):
         self.critic_optimizer = setup_optimizer(cfg.critic_optimizer, self.critic)
 
 class TD3(EpochBasedAlgo):
-    def __init__(self, cfg, offline=True):
+    def __init__(self, cfg, offline=False):
         super().__init__(cfg)
 
         self.offline = offline
@@ -109,7 +109,7 @@ class TD3(EpochBasedAlgo):
         self.target_actor = copy.deepcopy(self.actor)
 
         # As an alternative, you can use `AddOUNoise`
-        if not offline:  # Only have a noise agent if online learning
+        if not self.offline:  # Only have a noise agent if online learning
             # noise_agent = AddGaussianNoise(cfg.algorithm.action_noise)
             noise_agent = AddOUNoise(cfg.algorithm.action_noise)
             self.train_policy = Agents(self.actor, noise_agent)
@@ -118,7 +118,7 @@ class TD3(EpochBasedAlgo):
         self.eval_policy = self.actor # NOTE: pure exploitation for evaluation
 
         # TD3 SPECIFIC
-        if not offline:
+        if not self.offline:
             noise_clip_agent = AddNoiseClip(
                 sigma=cfg.algorithm.target_policy_noise,
                 clip=cfg.algorithm.target_policy_noise_clip,
@@ -128,7 +128,7 @@ class TD3(EpochBasedAlgo):
         self.t_q_agent_2 = TemporalAgent(self.critic_2)
         self.t_target_q_agent_2 = TemporalAgent(self.target_critic_2)
         self.t_actor_agent = TemporalAgent(self.actor)
-        if not offline:
+        if not self.offline:
             self.t_target_actor_agent = TemporalAgent(
                 Agents(self.target_actor, noise_clip_agent)
             )
