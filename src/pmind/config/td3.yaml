@@ -29,6 +29,8 @@ defaults: &default_td3
     architecture:
       actor_hidden_size: [400, 300]
       critic_hidden_size: [400, 300]
+    
+    intermediate_rewards: []
 
   gym_env:
     env_name: null
@@ -42,12 +44,16 @@ defaults: &default_td3
     lr: 1e-3
 
 environments:
-  CartPoleContinuous-v1:
+  CartPoleContinuous-v1: # Converges but not enough steps / too slow learning rate
     <<: *default_td3
     gym_env:
       env_name: CartPoleContinuous-v1
+    
+    algorithm:
+      <<: *default_td3_algorithm
+      intermediate_rewards: [100, 200, 300, 400]
 
-  Pendulum-v1:
+  Pendulum-v1: # Converges but not enough steps / too slow learning rate
     <<: *default_td3
     gym_env:
       env_name: Pendulum-v1
@@ -61,8 +67,9 @@ environments:
       target_policy_noise: 0.25
       target_policy_noise_clip: 0.5
       batch_size: 256
+      intermediate_rewards: [-1000, -750, -500, -250]
 
-  MountainCarContinuous-v0:
+  MountainCarContinuous-v0: # Seems to work as of 2026-03-04
     <<: *default_td3
     gym_env:
       env_name: MountainCarContinuous-v0
@@ -77,6 +84,7 @@ environments:
       target_policy_noise: 0.5
       target_policy_noise_clip: 0.5
       batch_size: 256
+      intermediate_rewards: [25, 50, 75]
 
   LunarLanderContinuous-v3:
     <<: *default_td3

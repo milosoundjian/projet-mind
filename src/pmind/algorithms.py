@@ -90,6 +90,12 @@ class TD3(EpochBasedAlgo):
         super().__init__(cfg)
 
         self.offline = offline
+
+        # Save the intermediate policy scores
+        self.intermediate_rewards = cfg.algorithm.intermediate_rewards
+        self.intermediate_policies = [None] * len(self.intermediate_rewards)
+        self.intermediate_index = 0
+
         # Define the agents and optimizers for TD3
 
         # ADAPTED FROM DDPG:
@@ -151,6 +157,22 @@ class TD3(EpochBasedAlgo):
             self.train_offline(rb)
         else:
             self.train_online()
+
+    def save_intermediate_policy(self):
+        """
+        Used to save intermediate policies, not my proudest code
+        """
+        if (
+            self.intermediate_index < len(self.intermediate_rewards)
+            and self.best_reward > self.intermediate_rewards[self.intermediate_index]
+            and self.intermediate_policies[self.intermediate_index] is None
+        ):
+            # print(f"Saving with reward: {self.best_reward}")
+            self.intermediate_policies[self.intermediate_index] = (
+                self.best_reward,
+                copy.deepcopy(self.best_policy),
+            )
+            self.intermediate_index += 1
 
     def learn_loop(self, rb_workspace: Workspace):
         """
@@ -261,6 +283,8 @@ class TD3(EpochBasedAlgo):
 
         # Evaluation
         if self.evaluate():
+            # If we have a new best policy, save it
+            self.save_intermediate_policy()
             if self.cfg.plot_agents:
                 plot_policy(
                     self.actor,
