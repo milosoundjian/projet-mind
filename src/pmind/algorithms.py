@@ -311,7 +311,7 @@ class TD3(EpochBasedAlgo):
         # NOTE: no self.train_agent(...) performed
         steps_pb = tqdm(range(self.cfg.algorithm.n_steps))
         for step in steps_pb:
-            self.nb_steps = step
+            self.nb_steps = step+1
 
             # Set description
             steps_pb.set_description(
