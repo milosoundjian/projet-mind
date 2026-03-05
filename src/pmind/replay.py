@@ -1,5 +1,6 @@
 from functools import partial
 from typing import Callable, Type
+from collections.abc import Iterable
 from enum import Enum
 
 import numpy as np
@@ -18,6 +19,8 @@ from bbrl_utils.algorithms import EpochBasedAlgo
 from tqdm import trange
 
 from pmind.visualization import plot_perf_vs_rb_composition
+
+from pmind.algorithms import TD3
 
 
 def collect_policy_transitions(policy_agent: Agent, env_name: str, buffer_size: int):
@@ -240,18 +243,16 @@ def test_rb_compositions(
     rb_unif: ReplayBuffer,
     rb_exploit: ReplayBuffer,
     buffer_size: int,
-    proportions: list,
-    agent_constructor: Type[EpochBasedAlgo],
+    proportions: Iterable,
+    agent_constructor: Type[TD3], # TODO: fow now only TD3 supports offline
     cfg,
-    offline_run: Callable[[EpochBasedAlgo, ReplayBuffer], None],
+    # offline_run: Callable[[EpochBasedAlgo, ReplayBuffer], None],
     seeds = [1],
 ):
     performances = []
     for prop in proportions:
         algo = cfg.algorithm
-        # TODO: actually less time-points, why???
-        # TODO: maybe eval happens once each n_steps? epoch_size is not n_steps I think
-        max_nb_timepoints = int(algo.n_steps * algo.max_epochs / algo.eval_interval)
+        max_nb_timepoints = int(algo.n_steps / algo.eval_interval)
         nb_envs = algo.nb_evals
 
         all_evals = np.empty((max_nb_timepoints,nb_envs, len(seeds)))
@@ -261,11 +262,12 @@ def test_rb_compositions(
                 rb_unif, rb_exploit, buffer_size=buffer_size, proportion=prop, seed = seed
             )
             cfg.algorithm.seed = seed
-            offline_agent = agent_constructor(cfg)
-            offline_run(offline_agent, rb_mixed)
+            offline_agent = agent_constructor(cfg, offline = True)
+            offline_agent.train(rb_mixed)
             current_evals = np.array(offline_agent.eval_rewards)
             nb_timepoints = current_evals.shape[0]
             all_evals[:nb_timepoints,:,i] = current_evals
+            # correct the size of the resulting array
             max_nb_timepoints = np.minimum(nb_timepoints, max_nb_timepoints)
 
         performances.append(all_evals[:max_nb_timepoints,:,:])

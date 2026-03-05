@@ -283,16 +283,7 @@ def run_td3_offline(td3: TD3, fixed_rb: ReplayBuffer):
     epochs_pb = tqdm(range(td3.cfg.algorithm.max_epochs))
     for epoch in epochs_pb:
 
-        train_workspace = Workspace()
-        td3.train_agent(
-            train_workspace,
-            t=0,
-            # TODO: or td3.cfg.algorithm.n_steps?
-            n_steps=td3.cfg.algorithm.n_steps+1,
-            stochastic=True,
-        )
-        td3.nb_steps += train_workspace.get_transitions().batch_size()
-
+        td3.nb_steps += td3.cfg.algorithm.n_steps
 
         epochs_pb.set_description(
                 f"nb_steps: {td3.nb_steps}, "

@@ -12,7 +12,7 @@ defaults: &default_td3
     n_steps: 100
     nb_evals: 10
     discount_factor: 0.98
-    buffer_size: 200000
+    buffer_size: 100000
     batch_size: 64
     tau_target: 0.05
     eval_interval: 2000
@@ -51,7 +51,8 @@ environments:
     
     algorithm:
       <<: *default_td3_algorithm
-      intermediate_rewards: [100, 200, 300, 400]
+      max_epochs: 4000
+      intermediate_rewards: [100, 200, 300, 400, 500]
 
   Pendulum-v1: # Converges but not enough steps / too slow learning rate
     <<: *default_td3
@@ -76,6 +77,7 @@ environments:
 
     algorithm:
       <<: *default_td3_algorithm
+      buffer_size: 200000
       discount_factor: 0.99
       tau_target: 0.05
       n_steps: 100
@@ -84,7 +86,7 @@ environments:
       target_policy_noise: 0.5
       target_policy_noise_clip: 0.5
       batch_size: 256
-      intermediate_rewards: [25, 50, 75]
+      intermediate_rewards: [25, 50, 75, 80, 85, 90, 95, 100]
 
   LunarLanderContinuous-v3:
     <<: *default_td3

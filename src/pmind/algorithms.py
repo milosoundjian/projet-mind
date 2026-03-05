@@ -149,11 +149,12 @@ class TD3(EpochBasedAlgo):
 
         self.last_policy_update_step = 0
 
-    def train(self, rb: ReplayBuffer = None):
+    def train(self, rb: ReplayBuffer|None = None):
         """
         :param rb: The replay buffer if doing online training
         """
         if self.offline:
+            assert isinstance(rb, ReplayBuffer), "Replay buffer is necessary for offline learning"
             self.train_offline(rb)
         else:
             self.train_online()
@@ -164,12 +165,12 @@ class TD3(EpochBasedAlgo):
         """
         if (
             self.intermediate_index < len(self.intermediate_rewards)
-            and self.best_reward > self.intermediate_rewards[self.intermediate_index]
+            and self.best_reward >= self.intermediate_rewards[self.intermediate_index]
             and self.intermediate_policies[self.intermediate_index] is None
         ):
             # print(f"Saving with reward: {self.best_reward}")
             self.intermediate_policies[self.intermediate_index] = (
-                self.best_reward,
+                float(self.best_reward),
                 copy.deepcopy(self.best_policy),
             )
             self.intermediate_index += 1
@@ -306,22 +307,14 @@ class TD3(EpochBasedAlgo):
         self.replay_buffer = (
             rb  # TODO: any reason to put it as attribute? is it used somewhere else?
         )
-
-        epochs_pb = tqdm(range(self.cfg.algorithm.max_epochs))
-        for epoch in epochs_pb:
-            # Set up workspace
-            train_workspace = Workspace()
-            self.train_agent(
-                train_workspace,
-                t=0,
-                # TODO: or td3.cfg.algorithm.n_steps?
-                n_steps=self.cfg.algorithm.n_steps + 1,
-                stochastic=True,
-            )
-            self.nb_steps += train_workspace.get_transitions().batch_size()
+        # TODO: do epochs even make sense for offline learning?
+        # NOTE: no self.train_agent(...) performed
+        steps_pb = tqdm(range(self.cfg.algorithm.n_steps))
+        for step in steps_pb:
+            self.nb_steps = step
 
             # Set description
-            epochs_pb.set_description(
+            steps_pb.set_description(
                 f"nb_steps: {self.nb_steps}, "
                 f"best reward: {self.best_reward: .2f}, "
                 f"running reward: {self.running_reward: .2f}"
