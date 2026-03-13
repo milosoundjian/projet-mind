@@ -94,21 +94,56 @@ class UniformExplorationWrapper(Wrapper):
 
     def uniform_reset(self):
         # TODO: adapt this method for "LunarLander-v3" - observation != state there
-        self.reset()
-        while True:
-            state = self.observation_space.sample()
-            if self.is_valid_state(state):
-                break
-            self.rejections += 1
-        #TODO: is self.unwrapped.state = state necessary?
-        self.state = state
+        initial_state = self.reset()
+        
         if self.env_type == SupportedEnv.PENDULUM:
-            # unwrapped state for pendulum is th, thdot,
-            # whereas the wrapper has state cos(th), sin(th), thdot
-            cos_th, sin_th, thdot = state
-            th = float(np.atan2(sin_th, cos_th))
-            self.unwrapped.state = th, thdot
+            # pendulum already uses uniform reset
+            state = initial_state
+        
+        elif self.env_type == SupportedEnv.LUNARLANDER:
+            rng = self.unwrapped.np_random
+            body = self.unwrapped.lander
+            legs = self.unwrapped.legs
+
+            # Do a uniform translation in space
+            # TODO: set better bounds
+            dx = rng.uniform(-10, 10)
+            dy = rng.uniform(-10, 0)
+
+            # Move body
+            body.position = (body.position[0] + dx,body.position[1] + dy)
+
+            # Move legs with same translation
+            for leg in legs:
+                leg.position = (leg.position[0] + dx, leg.position[1] + dy)
+                
+            vx = rng.uniform(-1,1)
+            vy = rng.uniform(-1,0)
+            vth = rng.uniform(-1, 1)
+
+            body.linearVelocity = (vx, vy)
+            for leg in legs:
+                leg.linearVelocity = (vx, vy)
+  
+            # TODO: body and both legs rotate independently, trickier...
+            # th = rng.uniform(-0.2, 0.2)
+            # body.angle = th
+            # for leg in legs:
+            #     leg.angle = th
+                
+            # body.angularVelocity = vth
+            # for leg in legs:
+            #     leg.angularVelocity = vth
+            state, *_ = self.step([0, 0]) # do nothing, just to detect whether ground was touched
+
         else:
+        
+            while True:
+                state = self.observation_space.sample()
+                if self.is_valid_state(state):
+                    break
+                self.rejections += 1
+
             self.unwrapped.state = state
 
         return state
@@ -116,7 +151,7 @@ class UniformExplorationWrapper(Wrapper):
 
     def uniform_action(self):
         return self.action_space.sample()
-
+    
     # TODO: set seed
     
 

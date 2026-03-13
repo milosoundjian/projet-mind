@@ -95,10 +95,11 @@ def compute_critic_loss(
     # proposed by actor
     # TODO: q_values of wrong shape! (1, B) apparently, only 1st time point is passed
     # print(f"Critic q_vals: {q_values.shape}")
+    q_values = q_values.flatten()
     target = reward[1] + gamma * target_q_values[1] * must_bootstrap[1]
 
     mse = nn.MSELoss()
-    critic_loss = mse(target, q_values) # TODO: q_values instead of q_values[0]?
+    critic_loss = mse(target, q_values.flatten()) # TODO: q_values instead of q_values[0]?
 
     return critic_loss
 
