@@ -293,6 +293,10 @@ def test_rb_compositions(
         all_evals = np.empty((max_nb_timepoints,nb_envs, len(seeds)))
 
         for i, seed in enumerate(seeds):
+            # Set the seeds
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            
             rb_mixed = mix_transitions(
                 rb_unif, rb_exploit, buffer_size=buffer_size, proportion=prop, seed = seed
             )

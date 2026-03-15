@@ -95,6 +95,9 @@ class TD3(EpochBasedAlgo):
         self.intermediate_rewards = cfg.algorithm.intermediate_rewards
         self.intermediate_policies = [None] * len(self.intermediate_rewards)
         self.intermediate_index = 0
+        
+        # Define the intermediate_n_steps for offline
+        self.intermediate_n_steps = cfg.algorithm.intermediate_n_steps
 
         # Define the agents and optimizers for TD3
 
