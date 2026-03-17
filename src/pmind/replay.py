@@ -94,7 +94,7 @@ class UniformExplorationWrapper(Wrapper):
 
     def uniform_reset(self):
         # TODO: adapt this method for "LunarLander-v3" - observation != state there
-        initial_state = self.reset()
+        initial_state, _ = self.reset()
         
         if self.env_type == SupportedEnv.PENDULUM:
             # pendulum already uses uniform reset
