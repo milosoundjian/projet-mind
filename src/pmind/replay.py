@@ -107,7 +107,7 @@ class UniformExplorationWrapper(Wrapper):
 
             # Do a uniform translation in space
             # TODO: set better bounds
-            dx = rng.uniform(-10, 10)
+            dx = rng.uniform(-5, 5) # tuned maybe
             dy = rng.uniform(-10, 0)
 
             # Move body
@@ -124,6 +124,10 @@ class UniformExplorationWrapper(Wrapper):
             body.linearVelocity = (vx, vy)
             for leg in legs:
                 leg.linearVelocity = (vx, vy)
+                
+            # Do a few random steps to get a bit of randomness
+            for _ in range(20): # Tune this maybe? This costs performance for collecting the uniform replay buffer though
+                self.step([0, 0])
   
             # TODO: body and both legs rotate independently, trickier...
             # th = rng.uniform(-0.2, 0.2)
