@@ -21,16 +21,23 @@ from tqdm import trange
 from pmind.visualization import plot_perf_vs_rb_composition
 
 from pmind.algorithms import TD3
+from pmind.agents import AddTruncatedGaussianNoise
 
 
-def collect_policy_transitions(policy_agent: Agent, env_name: str, buffer_size: int):
+def collect_policy_transitions(policy_agent: Agent, env_name: str, buffer_size: int, action_noise=0.):
 
     # TODO: is it okay to use only one parallel env?
     gym_agent = ParallelGymAgent(
         partial(make_env, env_name=env_name, autoreset=True), num_envs=1
     )  # TODO: .seed(seed)
-
-    t_agents = TemporalAgent(Agents(gym_agent, policy_agent))
+    
+    if action_noise != 0:
+        noise_agent = AddTruncatedGaussianNoise(action_noise=action_noise,
+                                                 action_space=gym_agent.action_space)
+        t_agents = TemporalAgent(Agents(gym_agent, policy_agent, noise_agent))
+    else:  
+        t_agents = TemporalAgent(Agents(gym_agent, policy_agent))
+        
     workspace = Workspace()
     t_agents(workspace, t=0, n_steps=buffer_size)
 

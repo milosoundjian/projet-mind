@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 from torch.distributions import Normal
+from torchrl.modules import TruncatedNormal
 
 import gymnasium as gym
 
@@ -83,6 +84,23 @@ class ContinuousDeterministicActor(Agent):
     def forward(self, t, **kwargs):
         obs = self.get(("env/env_obs", t))
         action = self.model(obs)
+        self.set(("action", t), action)
+        
+class AddTruncatedGaussianNoise(Agent):
+    def __init__(self, action_noise, action_space):
+        super().__init__()
+        self.action_noise = torch.tensor([action_noise] * action_space.shape[0] )
+        self.action_low = torch.tensor(action_space.low)
+        self.action_high = torch.tensor(action_space.high)
+
+    def forward(self, t, **kwargs):
+        act = self.get(("action", t))
+        dist = TruncatedNormal(loc=act,
+                       scale=self.action_noise, 
+                       low=self.action_low, 
+                       high=self.action_high
+                       )
+        action = dist.sample()
         self.set(("action", t), action)
 
 class AddGaussianNoise(Agent):
