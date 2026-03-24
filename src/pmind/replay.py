@@ -285,14 +285,13 @@ def mix_transitions(
     return rb_mixed
 
 
-def test_rb_compositions(
+def test_rb_uniform_proportions(
     rb_unif: ReplayBuffer,
     rb_exploit: ReplayBuffer,
     buffer_size: int,
     proportions: Iterable,
     agent_constructor: Type[TD3], # TODO: fow now only TD3 supports offline
     cfg,
-    # offline_run: Callable[[EpochBasedAlgo, ReplayBuffer], None],
     seeds = [1],
 ):
     performances = []
@@ -322,4 +321,53 @@ def test_rb_compositions(
 
         performances.append(all_evals[:max_nb_timepoints,:,:])
         
-    return performances # proportions x time-point x env x seed
+    return {"performances": performances, # proportions x time-point x env x seed
+            "buffer_size": buffer_size,
+            "rb_composition": proportions,
+            "eval_interval":cfg.algorithm.eval_interval,
+            "cfg": cfg,
+            "seeds": seeds,
+            "type" : "uniform_proportions"
+            } 
+    
+def test_rb_noise_levels(
+    rb_by_noise: dict[float, ReplayBuffer],
+    buffer_size: int,
+    agent_constructor: Type[TD3], 
+    cfg,
+    seeds = [1],
+):
+    action_noises = []
+    performances = []
+    for action_noise, rb_noise in sorted(rb_by_noise.items()):
+        algo = cfg.algorithm
+        max_nb_timepoints = int(algo.n_steps / algo.eval_interval)
+        nb_envs = algo.nb_evals
+
+        all_evals = np.empty((max_nb_timepoints,nb_envs, len(seeds)))
+
+        for i, seed in enumerate(seeds):
+            # Set the seeds
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            
+            cfg.algorithm.seed = seed
+            offline_agent = agent_constructor(cfg, offline = True)
+            offline_agent.train(rb_noise)
+            current_evals = np.array(offline_agent.eval_rewards)
+            nb_timepoints = current_evals.shape[0]
+            all_evals[:nb_timepoints,:,i] = current_evals
+            # correct the size of the resulting array
+            max_nb_timepoints = np.minimum(nb_timepoints, max_nb_timepoints)
+
+        performances.append(all_evals[:max_nb_timepoints,:,:])
+        action_noises.append(action_noise)
+        
+    return {"performances": performances, # proportions x time-point x env x seed
+            "buffer_size": buffer_size,
+            "rb_composition": action_noises,
+            "eval_interval":cfg.algorithm.eval_interval,
+            "cfg": cfg,
+            "seeds": seeds,
+            "type" : "noise_levels"
+            } 

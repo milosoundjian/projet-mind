@@ -89,9 +89,9 @@ class ContinuousDeterministicActor(Agent):
 class AddTruncatedGaussianNoise(Agent):
     def __init__(self, action_noise, action_space):
         super().__init__()
-        self.action_noise = torch.tensor([action_noise] * action_space.shape[0] )
-        self.action_low = torch.tensor(action_space.low)
-        self.action_high = torch.tensor(action_space.high)
+        self.action_noise = torch.tensor([action_noise] * action_space.shape[0], dtype=torch.float32)
+        self.action_low = torch.tensor(action_space.low, dtype=torch.float32)
+        self.action_high = torch.tensor(action_space.high, dtype=torch.float32)
 
     def forward(self, t, **kwargs):
         act = self.get(("action", t))

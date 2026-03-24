@@ -177,6 +177,14 @@ class TD3(EpochBasedAlgo):
                 copy.deepcopy(self.best_policy),
             )
             self.intermediate_index += 1
+    
+    def get_learned_policies(self):
+        learned_policies = {}
+        for reward_policy in self.intermediate_policies:
+            if reward_policy is not None:
+                learned_policies[reward_policy[0]] = reward_policy[1]
+        learned_policies[float(self.best_reward)] = self.best_policy
+        return learned_policies
 
     def learn_loop(self, rb_workspace: Workspace):
         """
