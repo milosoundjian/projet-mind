@@ -16,7 +16,7 @@ from bbrl.workspace import Workspace
 from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl_utils.algorithms import EpochBasedAlgo
 
-from tqdm import trange
+from tqdm import tqdm
 
 from pmind.visualization import plot_perf_vs_rb_composition
 
@@ -229,7 +229,7 @@ def collect_uniform_transitions(env_name: str, buffer_size: int = 100_000, print
     # TODO: consider discrete case for action space
     rb.variables["action"] = torch.empty([buffer_size, 2, env.action_space.shape[0]])
 
-    for i in trange(buffer_size):
+    for i in tqdm(range(buffer_size), desc="Uniform transitions"):
 
         state_0 = env.uniform_reset()
         action = env.uniform_action()
