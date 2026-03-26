@@ -329,7 +329,54 @@ def test_rb_uniform_proportions(
             "seeds": seeds,
             "type" : "uniform_proportions"
             } 
-    
+
+def test_rb_uniform_proportion(
+    rb_unif: ReplayBuffer,
+    rb_exploit: ReplayBuffer,
+    buffer_size: int,
+    proportion: float,
+    agent_constructor: Type[TD3],
+    cfg,
+    exploit_reward: int,
+    seed: int = 1,
+):
+    algo = cfg.algorithm
+    max_nb_timepoints = int(algo.n_steps / algo.eval_interval)
+    nb_envs = algo.nb_evals
+
+    # Set the seeds
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    rb_mixed = mix_transitions(
+        rb_unif,
+        rb_exploit,
+        buffer_size=buffer_size,
+        proportion=proportion,
+        seed=seed,
+    )
+
+    cfg.algorithm.seed = seed
+    offline_agent = agent_constructor(cfg, offline=True)
+    offline_agent.train(rb_mixed)
+
+    current_evals = np.array(offline_agent.eval_rewards)
+    nb_timepoints = min(current_evals.shape[0], max_nb_timepoints)
+
+    performances = current_evals[:nb_timepoints, :]  # time-point x env
+
+    return {
+        "performances": performances,  # time-point x env
+        "buffer_size": buffer_size,
+        "rb_composition": proportion,
+        "eval_interval": cfg.algorithm.eval_interval,
+        "cfg": cfg,
+        "exploit_reward": exploit_reward,
+        "seed": seed,
+        "type": "uniform_proportion",
+    }
+
+
 def test_rb_noise_levels(
     rb_by_noise: dict[float, ReplayBuffer],
     buffer_size: int,
