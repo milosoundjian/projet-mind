@@ -16,7 +16,7 @@ from bbrl.workspace import Workspace
 from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl_utils.algorithms import EpochBasedAlgo
 
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 
 from pmind.visualization import plot_perf_vs_rb_composition
 
@@ -293,6 +293,7 @@ def test_rb_uniform_proportions(
     agent_constructor: Type[TD3], # TODO: fow now only TD3 supports offline
     cfg,
     seeds = [1],
+    device = torch.device("cpu")
 ):
     performances = []
     for prop in proportions:
@@ -311,7 +312,7 @@ def test_rb_uniform_proportions(
                 rb_unif, rb_exploit, buffer_size=buffer_size, proportion=prop, seed = seed
             )
             cfg.algorithm.seed = seed
-            offline_agent = agent_constructor(cfg, offline = True)
+            offline_agent = agent_constructor(cfg, offline = True).to(device)
             offline_agent.train(rb_mixed)
             current_evals = np.array(offline_agent.eval_rewards)
             nb_timepoints = current_evals.shape[0]
@@ -339,6 +340,7 @@ def test_rb_uniform_proportion(
     cfg,
     exploit_reward: int,
     seed: int = 1,
+    device = torch.device("cpu")
 ):
     algo = cfg.algorithm
     max_nb_timepoints = int(algo.n_steps / algo.eval_interval)
@@ -357,7 +359,7 @@ def test_rb_uniform_proportion(
     )
 
     cfg.algorithm.seed = seed
-    offline_agent = agent_constructor(cfg, offline=True)
+    offline_agent = agent_constructor(cfg, offline=True).to(device)
     offline_agent.train(rb_mixed)
 
     current_evals = np.array(offline_agent.eval_rewards)
@@ -383,6 +385,7 @@ def test_rb_noise_levels(
     agent_constructor: Type[TD3], 
     cfg,
     seeds = [1],
+    device = torch.device("cpu")
 ):
     action_noises = []
     performances = []
@@ -399,7 +402,7 @@ def test_rb_noise_levels(
             torch.manual_seed(seed)
             
             cfg.algorithm.seed = seed
-            offline_agent = agent_constructor(cfg, offline = True)
+            offline_agent = agent_constructor(cfg, offline = True).to(device)
             offline_agent.train(rb_noise)
             current_evals = np.array(offline_agent.eval_rewards)
             nb_timepoints = current_evals.shape[0]

@@ -64,14 +64,25 @@ class ContinuousQAgent(Agent):
 
     def forward(self, t):
         # Get the current state $s_t$ and the chosen action $a_t$
-        obs = self.get(("env/env_obs", t))  # shape B x D_{obs}
-        action = self.get(("action", t))  # shape B x D_{action}
+        obs = self.get(("env/env_obs", t)).to(self.get_device())  # shape B x D_{obs}
+        action = self.get(("action", t)).to(self.get_device())  # shape B x D_{action}
 
         # Compute the Q-value(s_t, a_t)
         obs_act = torch.cat((obs, action), dim=1)  # shape B x (D_{obs} + D_{action})
         # Get the q-value (and remove the last dimension since it is a scalar)
         q_value = self.model(obs_act).squeeze(-1)
         self.set((f"{self.prefix}q_value", t), q_value)
+    
+    def to(self, device: torch.types.Device, *args, **kwargs):
+        super().to(device, *args, **kwargs) 
+        self.model.to(device)
+        return self
+           
+    def get_device(self):
+        try:
+            return next(self.parameters()).device
+        except StopIteration:
+            return next(self.buffers()).device
 
 class ContinuousDeterministicActor(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim):
@@ -82,9 +93,20 @@ class ContinuousDeterministicActor(Agent):
         )
 
     def forward(self, t, **kwargs):
-        obs = self.get(("env/env_obs", t))
+        obs = self.get(("env/env_obs", t)).to(self.get_device())
         action = self.model(obs)
         self.set(("action", t), action)
+        
+    def to(self, device: torch.types.Device, *args, **kwargs):
+        super().to(device, *args, **kwargs) 
+        self.model.to(device)
+        return self    
+    
+    def get_device(self):
+        try:
+            return next(self.parameters()).device
+        except StopIteration:
+            return next(self.buffers()).device
         
 class AddTruncatedGaussianNoise(Agent):
     def __init__(self, action_noise, action_space):
@@ -131,7 +153,7 @@ class AddOUNoise(Agent):
         x = (
             self.x_prev
             + self.theta * (act - self.x_prev) * self.dt
-            + self.std_dev * math.sqrt(self.dt) * torch.randn(act.shape)
+            + self.std_dev * math.sqrt(self.dt) * torch.randn(act.shape, device=act.device)
         )
         self.x_prev = x
         self.set(("action", t), x)

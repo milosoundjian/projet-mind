@@ -88,6 +88,8 @@ class DDPG(EpochBasedAlgo):
 class TD3(EpochBasedAlgo):
     def __init__(self, cfg, offline=False):
         super().__init__(cfg)
+        
+        self.device = torch.device("cpu")
 
         self.offline = offline
 
@@ -151,6 +153,22 @@ class TD3(EpochBasedAlgo):
         self.critic_optimizer_2 = setup_optimizer(cfg.critic_optimizer, self.critic_2)
 
         self.last_policy_update_step = 0
+    
+    def to(self, device: torch.types.Device):
+        self.device = device
+        
+        self.critic_1.to(device)
+        self.critic_2.to(device)
+        self.target_critic_1.to(device)
+        self.target_critic_2.to(device)
+
+        self.actor.to(device)
+        self.target_actor.to(device)
+
+        return self
+    
+    def get_device(self):
+        return self.device
 
     def train(self, rb: ReplayBuffer|None = None):
         """
@@ -158,6 +176,7 @@ class TD3(EpochBasedAlgo):
         """
         if self.offline:
             assert isinstance(rb, ReplayBuffer), "Replay buffer is necessary for offline learning"
+            rb.to(self.get_device())
             self.train_offline(rb)
         else:
             self.train_online()
@@ -309,6 +328,7 @@ class TD3(EpochBasedAlgo):
 
     def train_online(self):
         for rb in self.iter_replay_buffers():
+            rb.to(self.device)
             rb_workspace = rb.get_shuffled(self.cfg.algorithm.batch_size)
 
             self.learn_loop(rb_workspace)
@@ -383,3 +403,4 @@ class OfflineTD3(EpochBasedAlgo):
         self.critic_optimizer_2 = setup_optimizer(cfg.critic_optimizer, self.critic_2)
 
         self.last_policy_update_step = 0
+        
