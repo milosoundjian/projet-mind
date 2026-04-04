@@ -421,3 +421,39 @@ def test_rb_noise_levels(
             "seeds": seeds,
             "type" : "noise_levels"
             } 
+
+def test_rb_noise_level(
+    rb: ReplayBuffer,
+    action_noise,
+    buffer_size: int,
+    agent_constructor: Type[TD3],
+    cfg,
+    seed: int,
+    device=torch.device("cpu"),
+):
+    algo = cfg.algorithm
+    max_nb_timepoints = int(algo.n_steps / algo.eval_interval)
+    nb_envs = algo.nb_evals
+
+    # Set the seeds
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    cfg.algorithm.seed = seed
+    offline_agent = agent_constructor(cfg, offline=True).to(device)
+    offline_agent.train(rb)
+
+    current_evals = np.array(offline_agent.eval_rewards)
+    nb_timepoints = min(current_evals.shape[0], max_nb_timepoints)
+
+    performances = current_evals[:nb_timepoints, :]  # time-point x env
+
+    return {
+        "performances": performances,
+        "buffer_size": buffer_size,
+        "rb_composition": action_noise,
+        "eval_interval": cfg.algorithm.eval_interval,
+        "cfg": cfg,
+        "seed": seed,
+        "type": "noise_levels",
+    }
