@@ -1,7 +1,97 @@
 import colorsys
 
+import os
+import glob
+import re
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
+
+
+def load_results(env_names, input_dir, from_single_experiments=True):
+
+    if from_single_experiments:
+        pattern = re.compile(
+            r"result-(?P<env_name>.+-v\d+)-(?P<reward>\d+)-(?P<prop>\d+\.\d+)-(?P<seed>\d+)\.pt"
+        )
+
+        all_performances = {}
+        for rb_composition_type in ("uniform_proportions", "noise_levels"):
+            all_performances[rb_composition_type] = {}
+            for env_name in env_names:
+                all_performances[rb_composition_type][env_name] = {}
+                results_found = False
+                seeds = set()
+                proportions = set()
+                exploit_rewards = set()
+                for dirname in os.listdir(
+                    input_dir + f"results-{rb_composition_type}/"
+                ):
+                    if env_name in dirname:
+                        print(dirname)
+                        for fname in os.listdir(
+                            input_dir + f"results-{rb_composition_type}/" + dirname
+                        ):
+                            match = pattern.search(fname)
+                            if match:
+                                results_found = True
+                                info = match.groupdict()
+                                exploit_rewards.add(int(info["reward"]))
+                                proportions.add(float(info["prop"]))
+                                seeds.add(int(info["seed"]))
+
+                if results_found:
+                    seeds = sorted(seeds)
+                    proportions = sorted(proportions)
+                    exploit_rewards = sorted(exploit_rewards)
+
+                    for exploit_reward in exploit_rewards:
+                        dirname = f"{input_dir}/results-{rb_composition_type}/results-{env_name}-{exploit_reward}"
+                        d_ref = torch.load(
+                            f"{dirname}/result-{env_name}-{exploit_reward}-{proportions[0]}-{seeds[0]}.pt",
+                            weights_only=False,
+                        )
+                        test_log = {
+                            "performances": None,
+                            "buffer_size": d_ref["buffer_size"],
+                            "rb_composition": proportions,
+                            "eval_interval": d_ref["eval_interval"],
+                            "cfg": d_ref["cfg"],
+                            "seeds": seeds,
+                            "type": d_ref["type"] + "s",
+                        }
+                        test_log["performances"] = [
+                            np.stack(
+                                [
+                                    torch.load(
+                                        f"{dirname}/result-{env_name}-{exploit_reward}-{proportion}-{seed}.pt",
+                                        weights_only=False,
+                                    )["performances"]
+                                    for seed in seeds
+                                ],
+                                -1,
+                            )
+                            for proportion in proportions
+                        ]
+                        all_performances[rb_composition_type][env_name][
+                            exploit_reward
+                        ] = test_log
+    else:
+        all_performances = {}
+        for rb_composition_type in ("uniform_proportions", "noise_levels"):
+            all_performances[rb_composition_type] = {}
+            for env_name in env_names:
+                all_performances[rb_composition_type][env_name] = {}
+                print(f"{env_name}:")
+                for intermediate_path in glob.glob(
+                    f"{input_dir}/{rb_composition_type}-{env_name}-scoring-*"
+                ):
+                    exploit_performance = float(intermediate_path.split("-scoring-")[1])
+                    print(f"    {exploit_performance}")
+                    all_performances[rb_composition_type][env_name][
+                        exploit_performance
+                    ] = torch.load(intermediate_path, weights_only=False)
+    return all_performances
 
 
 def generate_colors(n, s=0.7, v=0.9):
@@ -104,123 +194,107 @@ def aggregate_learning_curves(
 
 
 def plot_learning_curves(
-    env_performances,
+    rb_composition_experiment,
     smooth_mode=None,
     smooth_window=3,
     plot_all_curves=True,
     plot_margin=0.05,
+    ax=None,
 ):
 
-    n_rewards = len(env_performances)
-    ncols = 2 if n_rewards > 1 else 1
-    nrows = int(np.ceil(n_rewards / ncols))
-    fig, axes = plt.subplots(nrows, ncols, figsize=(10, 10))
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
 
-    axes = np.atleast_1d(axes).flatten()
+    rb_composition = rb_composition_experiment["rb_composition"]
+    eval_interval = rb_composition_experiment["eval_interval"]
+    rb_composition_type = rb_composition_experiment["type"]
+    env_name = rb_composition_experiment["cfg"].gym_env.env_name
+    nb_evals, nb_envs, nb_seeds = rb_composition_experiment["performances"][0].shape
 
-    for i_reward, reward in enumerate(sorted(env_performances)):
-        rb_composition = env_performances[reward]["rb_composition"]
-        eval_interval = env_performances[reward]["eval_interval"]
-        rb_composition_type = env_performances[reward]["type"]
-        env_name = env_performances[reward]["cfg"].gym_env.env_name
-        nb_evals, nb_envs, nb_seeds = env_performances[reward]["performances"][0].shape
+    learning_curves, aggregated_learning_curves, *_ = aggregate_learning_curves(
+        rb_composition_experiment, smooth_mode, smooth_window
+    )
 
-        learning_curves, aggregated_learning_curves, *_ = aggregate_learning_curves(
-            env_performances[reward], smooth_mode, smooth_window
+    colors = generate_colors(len(rb_composition))
+
+    min_perf, max_perf = np.inf, -np.inf
+
+    for i_prop, proportion in enumerate(rb_composition):
+        if plot_all_curves:
+            for i_env in range(nb_envs):
+                for i_seed in range(nb_seeds):
+                    learning_curve = learning_curves[i_prop][:, i_env, i_seed]
+
+                    ax.plot(
+                        (np.arange(len(learning_curve)) + 1) * eval_interval,
+                        learning_curve,
+                        color=colors[i_prop],
+                        alpha=0.03,
+                    )  # label = proportion if i_seed == 0 and i_env == 0 else None
+
+        ax.plot(
+            (np.arange(len(learning_curves[i_prop])) + 1) * eval_interval,
+            aggregated_learning_curves[i_prop],
+            color=colors[i_prop],
+            label=proportion,
+            alpha=1,
         )
 
-        colors = generate_colors(len(rb_composition))
-
-        min_perf, max_perf = np.inf, -np.inf
-
-        for i_prop, proportion in enumerate(rb_composition):
-            if plot_all_curves:
-                for i_env in range(nb_envs):
-                    for i_seed in range(nb_seeds):
-                        learning_curve = learning_curves[i_prop][:, i_env, i_seed]
-
-                        axes[i_reward].plot(
-                            (np.arange(len(learning_curve)) + 1) * eval_interval,
-                            learning_curve,
-                            color=colors[i_prop],
-                            alpha=0.03,
-                        )  # label = proportion if i_seed == 0 and i_env == 0 else None
-
-            axes[i_reward].plot(
-                (np.arange(len(learning_curves[i_prop])) + 1) * eval_interval,
-                aggregated_learning_curves[i_prop],
-                color=colors[i_prop],
-                label=proportion,
-                alpha=1,
-            )
-
-            min_perf = np.minimum(learning_curves[i_prop].min(), min_perf)
-            max_perf = np.maximum(learning_curves[i_prop].max(), max_perf)
-            y_lim_range = np.abs(max_perf - min_perf)
-            axes[i_reward].set_ylim(
-                [
-                    min_perf - plot_margin * y_lim_range,
-                    max_perf + plot_margin * y_lim_range,
-                ]
-            )
-        axes[i_reward].set_title(f"Exploit reward: {reward}")
-        axes[i_reward].set_ylabel("evaluation performance")
-        axes[i_reward].set_xlabel("nb steps")
-
-    for ax in axes[i_reward + 1 :]:
-        fig.delaxes(ax)
-    axes[0].legend(
-        title="Uniform\nproportion"
-        if rb_composition_type == "uniform_proportions"
-        else "Action\nnoise",
-        loc="upper left",
-    )
-    fig.suptitle(
-        f"{env_name}" + f"\n{smooth_mode} smooth (w={smooth_window})"
-        if smooth_mode is not None
-        else ""
-    )
-    plt.tight_layout()
-    plt.show()
+        min_perf = np.minimum(learning_curves[i_prop].min(), min_perf)
+        max_perf = np.maximum(learning_curves[i_prop].max(), max_perf)
+        y_lim_range = np.abs(max_perf - min_perf)
+        ax.set_ylim(
+            [
+                min_perf - plot_margin * y_lim_range,
+                max_perf + plot_margin * y_lim_range,  # type: ignore
+            ]
+        )
+        ax.set_ylabel("evaluation performance")
+        ax.set_xlabel("nb steps")
 
 
 def plot_rb_compositions(
-    env_performances, smooth_mode=None, smooth_window=3, step_to_take=None, last_steps=1
+    rb_composition_experiment,
+    smooth_mode=None,
+    smooth_window=3,
+    step_to_take=None,
+    last_steps=1,
+    ax=None,
+    label=None,
 ):
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
 
-    plt.figure(figsize=(10, 10))
+    rb_composition = rb_composition_experiment["rb_composition"]
+    eval_interval = rb_composition_experiment["eval_interval"]
+    rb_composition_type = rb_composition_experiment["type"]
+    env_name = rb_composition_experiment["cfg"].gym_env.env_name
 
-    for reward in sorted(env_performances):
-        rb_composition = env_performances[reward]["rb_composition"]
-        eval_interval = env_performances[reward]["eval_interval"]
-        rb_composition_type = env_performances[reward]["type"]
-        env_name = env_performances[reward]["cfg"].gym_env.env_name
+    _, _, means, stds, step_slice = aggregate_learning_curves(
+        rb_composition_experiment,
+        smooth_mode,
+        smooth_window,
+        step_to_take,
+        last_steps,
+    )
 
-        _, _, means, stds, step_slice = aggregate_learning_curves(
-            env_performances[reward],
-            smooth_mode,
-            smooth_window,
-            step_to_take,
-            last_steps,
-        )
-
-        plt.plot(rb_composition, means, label=reward)
-        plt.fill_between(
-            rb_composition,
-            means - stds,
-            means + stds,
-            alpha=0.1,
-        )
-
-    plt.title(
+    ax.plot(rb_composition, means, label=label)
+    ax.fill_between(
+        rb_composition,
+        means - stds,
+        means + stds,
+        alpha=0.1,
+    )
+    ax.set_title(
         f"{env_name}\nperformance in {step_slice.start * eval_interval, step_slice.stop * eval_interval if step_slice.stop is not None else 'max'} steps"
     )
-    plt.xlabel(
+    ax.set_xlabel(
         "% of uniform exploration in replay buffer"
         if rb_composition_type == "uniform_proportions"
         else "truncated gaussian noise on policy actions"
     )
-    plt.ylabel("evaluation performance (mean $\\pm$ std)")
-    plt.legend(title="Exploit reward")
-    plt.tight_layout()
-    plt.show()
+    ax.set_ylabel("evaluation performance (mean $\\pm$ std)")
