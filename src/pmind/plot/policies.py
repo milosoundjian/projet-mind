@@ -50,7 +50,6 @@ def plot_rb_space_coverage(
     state_space=None,
     ax=None,
     colorbar=True,
-    title=None,
     pendulum_angle=False,
 ):
     rb_states = rb.variables["env/env_obs"].detach().numpy()
@@ -98,9 +97,6 @@ def plot_rb_space_coverage(
         cbar = fig.colorbar(sc, ax=ax)
         cbar.set_label("action")
 
-    if title is None:
-        title = "Replay buffer state-action space coverage"
-    ax.set_title(title)
 
     ax.set_xlabel(x_name) if x_name is not None else None
     ax.set_ylabel(y_name) if y_name is not None else None
@@ -178,7 +174,7 @@ def plot_policy(
 
     cntr = ax.pcolormesh(X, Y, Z, cmap="coolwarm", vmin=-1, vmax=1)
     if colorbar:
-        cbar = fig.colorbar(cntr, ax=ax)
+        cbar = fig.colorbar(cntr, ax=ax, shrink=0.5)
         cbar.set_label("action")
 
     return ax

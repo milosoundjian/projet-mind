@@ -104,8 +104,10 @@ class UniformExplorationWrapper(Wrapper):
         initial_state, _ = self.reset()
         
         if self.env_type == SupportedEnv.PENDULUM:
-            # pendulum already uses uniform reset
-            state = initial_state
+            state = self.observation_space.sample()
+            cos_th, sin_th, th_dot = state
+            th = np.arctan2(sin_th, cos_th)
+            self.state = self.unwrapped.state = np.array([th, th_dot])
         
         elif self.env_type == SupportedEnv.LUNARLANDER:
             rng = self.unwrapped.np_random
