@@ -289,9 +289,7 @@ def plot_rb_compositions(
         means + stds,
         alpha=0.1,
     )
-    ax.set_title(
-        f"{env_name}\nperformance in {step_slice.start * eval_interval, step_slice.stop * eval_interval if step_slice.stop is not None else 'max'} steps"
-    )
+
     ax.set_xlabel(
         "% of uniform exploration in replay buffer"
         if rb_composition_type == "uniform_proportions"
