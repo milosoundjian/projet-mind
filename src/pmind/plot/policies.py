@@ -11,7 +11,11 @@ ENV_NAMES = (
 
 ALL_STATE_SPACES = {
     "CartPoleContinuous-v1": np.array(
-        [[-4.8, 4.8], [-np.inf, np.inf], [-0.41887903, 0.41887903], [-np.inf, np.inf]],
+        [[-4.8, 4.8], 
+         [-np.inf, np.inf], 
+         [-0.41887903, 0.41887903], 
+         [-0.5, 3]#[-np.inf, np.inf]
+         ],
         dtype=np.float32,
     ),
     "Pendulum-v1": np.array([[-1.0, 1.0], [-1.0, 1.0], [-8.0, 8.0]], dtype=np.float32),
@@ -233,7 +237,7 @@ def plot_trajectories(
 
         for j in range(traj_length - 1):
             action = np.array([policy.model(torch.tensor(state).float()).item()])
-            state, *_ = env.step(action)
+            state, _, terminated, truncated, _  = env.step(action)
 
             if pendulum_angle:
                 cos_th, sin_th, th_dot = state
@@ -241,6 +245,10 @@ def plot_trajectories(
                 trajectory[:, j + 1] = np.array([th, th_dot])
             else:
                 trajectory[:, j + 1] = state
+            
+            if terminated or truncated:
+                trajectory = trajectory[:, :j + 2]
+                break
 
         if pendulum_angle:
             x = trajectory[0]
