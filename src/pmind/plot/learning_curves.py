@@ -12,7 +12,7 @@ def load_results(env_names, input_dir, from_single_experiments=True):
 
     if from_single_experiments:
         pattern = re.compile(
-            r"result-(?P<env_name>.+-v\d+)-(?P<reward>\d+)-(?P<prop>\d+\.\d+)-(?P<seed>\d+)\.pt"
+            r"result-(?P<env_name>.+-v\d+)-(?P<reward>-?\d+)-(?P<prop>\d+\.\d+)-(?P<seed>\d+)\.pt"
         )
 
         all_performances = {}
@@ -41,10 +41,10 @@ def load_results(env_names, input_dir, from_single_experiments=True):
                                 exploit_rewards.add(int(info["reward"]))
                                 proportions.add(float(info["prop"]))
                                 dir_seeds.add(int(info["seed"]))
-                    if len(seeds) == 0:
-                        seeds = dir_seeds
-                    else:
-                        seeds &= dir_seeds
+                        if len(seeds) == 0:
+                            seeds = dir_seeds
+                        else:
+                            seeds &= dir_seeds
 
                 if results_found:
                     seeds = sorted(seeds)
@@ -261,7 +261,7 @@ def plot_learning_curves(
                 agg_perf + std_perf,
                 color=colors[i_prop],
                 # label=proportion,
-                alpha=0.2,
+                alpha=0.1,
             )
 
         min_perf = np.minimum(learning_curves[i_prop].min(), min_perf)
