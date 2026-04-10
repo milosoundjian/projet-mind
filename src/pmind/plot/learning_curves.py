@@ -17,6 +17,7 @@ def load_results(env_names, input_dir, from_single_experiments=True):
 
         all_performances = {}
         for rb_composition_type in ("uniform_proportions", "noise_levels"):
+            print("Collecting", rb_composition_type)
             all_performances[rb_composition_type] = {}
             for env_name in env_names:
                 all_performances[rb_composition_type][env_name] = {}
@@ -27,6 +28,7 @@ def load_results(env_names, input_dir, from_single_experiments=True):
                 for dirname in os.listdir(
                     input_dir + f"results-{rb_composition_type}/"
                 ):
+                    dir_seeds = set()
                     if env_name in dirname:
                         print(dirname)
                         for fname in os.listdir(
@@ -38,7 +40,11 @@ def load_results(env_names, input_dir, from_single_experiments=True):
                                 info = match.groupdict()
                                 exploit_rewards.add(int(info["reward"]))
                                 proportions.add(float(info["prop"]))
-                                seeds.add(int(info["seed"]))
+                                dir_seeds.add(int(info["seed"]))
+                    if len(seeds) == 0:
+                        seeds = dir_seeds
+                    else:
+                        seeds &= dir_seeds
 
                 if results_found:
                     seeds = sorted(seeds)
@@ -60,6 +66,7 @@ def load_results(env_names, input_dir, from_single_experiments=True):
                             "seeds": seeds,
                             "type": d_ref["type"] + "s",
                         }
+                        # TODO: add asserts that all files have consistent metadata
                         test_log["performances"] = [
                             np.stack(
                                 [
@@ -147,6 +154,7 @@ def aggregate_learning_curves(
 
     learning_curves = []
     aggregated_learning_curves = []
+    std_learning_curves = []
 
     for i_prop in range(len(rb_composition)):
         if smooth_mode is not None:
@@ -167,7 +175,7 @@ def aggregate_learning_curves(
 
         # NOTE: Choose aggregation: first on ENV and then on SEED dimension
         aggregated_learning_curves.append(learning_curves[i_prop].mean(1).mean(1))
-        std_learning_curves = learning_curves[i_prop].mean(1).std(1)
+        std_learning_curves.append(learning_curves[i_prop].mean(1).std(1))
 
         if step_to_take is not None:
             step_slice = slice(
@@ -180,13 +188,14 @@ def aggregate_learning_curves(
         last_performances[i_prop] = aggregated_learning_curves[i_prop][
             step_slice
         ].mean()
-        std_last_performances[i_prop] = std_learning_curves[
+        std_last_performances[i_prop] = std_learning_curves[i_prop][
             step_slice
         ].mean()  # TODO: better std pooling
 
     return (
         learning_curves,
         aggregated_learning_curves,
+        std_learning_curves,
         last_performances,
         std_last_performances,
         step_slice,
@@ -197,7 +206,8 @@ def plot_learning_curves(
     rb_composition_experiment,
     smooth_mode=None,
     smooth_window=3,
-    plot_all_curves=True,
+    plot_all_curves=False,
+    plot_std=True,
     plot_margin=0.05,
     ax=None,
 ):
@@ -213,8 +223,8 @@ def plot_learning_curves(
     env_name = rb_composition_experiment["cfg"].gym_env.env_name
     nb_evals, nb_envs, nb_seeds = rb_composition_experiment["performances"][0].shape
 
-    learning_curves, aggregated_learning_curves, *_ = aggregate_learning_curves(
-        rb_composition_experiment, smooth_mode, smooth_window
+    learning_curves, aggregated_learning_curves, std_learning_curves, *_ = (
+        aggregate_learning_curves(rb_composition_experiment, smooth_mode, smooth_window)
     )
 
     colors = generate_colors(len(rb_composition))
@@ -233,14 +243,26 @@ def plot_learning_curves(
                         color=colors[i_prop],
                         alpha=0.03,
                     )  # label = proportion if i_seed == 0 and i_env == 0 else None
-
+        agg_perf = aggregated_learning_curves[i_prop]
+        std_perf = std_learning_curves[i_prop]
         ax.plot(
             (np.arange(len(learning_curves[i_prop])) + 1) * eval_interval,
-            aggregated_learning_curves[i_prop],
+            agg_perf,
             color=colors[i_prop],
             label=proportion,
             alpha=1,
         )
+
+        if plot_std:
+            
+            ax.fill_between(
+                (np.arange(len(learning_curves[i_prop])) + 1) * eval_interval,
+                agg_perf - std_perf,
+                agg_perf + std_perf,
+                color=colors[i_prop],
+                # label=proportion,
+                alpha=0.2,
+            )
 
         min_perf = np.minimum(learning_curves[i_prop].min(), min_perf)
         max_perf = np.maximum(learning_curves[i_prop].max(), max_perf)
@@ -274,7 +296,7 @@ def plot_rb_compositions(
     rb_composition_type = rb_composition_experiment["type"]
     env_name = rb_composition_experiment["cfg"].gym_env.env_name
 
-    _, _, means, stds, step_slice = aggregate_learning_curves(
+    _, _, _, means, stds, step_slice = aggregate_learning_curves(
         rb_composition_experiment,
         smooth_mode,
         smooth_window,
