@@ -298,7 +298,7 @@ def test_rb_uniform_proportions(
     device = torch.device("cpu")
 ):
     performances = []
-    best_policies = []
+    policies = []
     replay_buffers = []
     for prop in proportions:
         algo = cfg.algorithm
@@ -307,7 +307,7 @@ def test_rb_uniform_proportions(
 
         all_evals = np.empty((max_nb_timepoints,nb_envs, len(seeds)))
         
-        best_policies.append([])
+        policies.append([])
         replay_buffers.append([])
 
         for i, seed in enumerate(seeds):
@@ -321,7 +321,7 @@ def test_rb_uniform_proportions(
             cfg.algorithm.seed = seed
             offline_agent = agent_constructor(cfg, offline = True).to(device)
             offline_agent.train(rb_mixed)
-            best_policies[-1].append(offline_agent.best_policy)
+            policies[-1].append(offline_agent.policies)
             replay_buffers[-1].append(rb_mixed)
             current_evals = np.array(offline_agent.eval_rewards)
             nb_timepoints = current_evals.shape[0]
@@ -339,8 +339,9 @@ def test_rb_uniform_proportions(
             "seeds": seeds,
             "type" : "uniform_proportions",
             "n_steps": cfg.algorithm.n_steps,
-            "best_policies": best_policies, # proportions x seed
-            "replay_buffers": replay_buffers # proportions x seed
+            "save_rb_policy_interval" : cfg.algorithm.get("save_rb_policy_interval"),
+            "policies": policies, # proportions x seed x time-point
+            "replay_buffers": replay_buffers # proportions x seed 
             } 
 
 def test_rb_uniform_proportion(
@@ -401,7 +402,7 @@ def test_rb_noise_levels(
 ):
     action_noises = []
     performances = []
-    best_policies = []
+    policies = []
     replay_buffers = []
     for action_noise, rb_noise in sorted(rb_by_noise.items()):
         algo = cfg.algorithm
@@ -410,7 +411,7 @@ def test_rb_noise_levels(
 
         all_evals = np.empty((max_nb_timepoints,nb_envs, len(seeds)))
         
-        best_policies.append([])
+        policies.append([])
         replay_buffers.append([])
 
         for i, seed in enumerate(seeds):
@@ -422,7 +423,7 @@ def test_rb_noise_levels(
             offline_agent = agent_constructor(cfg, offline = True).to(device)
             offline_agent.train(rb_noise)
             
-            best_policies[-1].append(offline_agent.best_policy)
+            policies[-1].append(offline_agent.policies)
             replay_buffers[-1].append(rb_noise)
             
             current_evals = np.array(offline_agent.eval_rewards)
@@ -442,7 +443,8 @@ def test_rb_noise_levels(
             "seeds": seeds,
             "type" : "noise_levels",
             "n_steps": cfg.algorithm.n_steps,
-            "best_policies": best_policies, # proportions x seed 
+            "save_rb_policy_interval" : cfg.algorithm.get("save_rb_policy_interval"),
+            "policies": policies, # proportions x seed x time-point
             "replay_buffers": replay_buffers # proportions x seed 
             } 
 

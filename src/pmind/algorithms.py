@@ -98,6 +98,9 @@ class TD3(EpochBasedAlgo):
         self.intermediate_policies = [None] * len(self.intermediate_rewards)
         self.intermediate_index = 0
         
+        self.save_rb_policy_interval = cfg.algorithm.get("save_rb_policy_interval")
+        self.policies = []
+        
         # Define the intermediate_n_steps for offline
         self.intermediate_n_steps = cfg.algorithm.intermediate_n_steps
 
@@ -310,6 +313,10 @@ class TD3(EpochBasedAlgo):
         ):
             self.last_policy_update_step = self.nb_steps
             copy_parameters(self.t_actor_agent, self.t_target_actor_agent)
+        
+        if self.nb_steps > 0 and self.nb_steps % self.save_rb_policy_interval == 0:
+            self.policies.append(self.best_policy)
+            
 
         # Evaluation
         if self.evaluate():

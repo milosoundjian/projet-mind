@@ -11,6 +11,13 @@ ENV_NAMES = (
     # "LunarLanderContinuous-v3",
 )
 
+ALL_ACTION_SPACES = {
+    "CartPoleContinuous-v1": [-1,1],
+    "Pendulum-v1": [-2,2],
+    "MountainCarContinuous-v0": [-1,1],
+    # "LunarLanderContinuous-v3": = []
+}
+
 ALL_STATE_SPACES = {
     "CartPoleContinuous-v1": np.array(
         [[-4.8, 4.8], 
@@ -59,6 +66,7 @@ def plot_rb_space_coverage(
 ):
     state_names=ALL_STATE_NAMES[env_name]
     state_space=ALL_STATE_SPACES[env_name]
+    action_min, action_max = ALL_ACTION_SPACES[env_name]
     rb_states = rb.variables["env/env_obs"].detach().numpy()
     rb_actions = rb.variables["action"].detach().numpy()
     nb_samples, _, state_dim = rb_states.shape
@@ -99,6 +107,8 @@ def plot_rb_space_coverage(
         s=0.01,
         c=actions,
         cmap="coolwarm",
+        vmin=action_min,
+        vmax=action_max
     )
     if colorbar:
         cbar = fig.colorbar(sc, ax=ax)
@@ -127,6 +137,7 @@ def plot_policy(
 ):
 
     state_space = ALL_STATE_SPACES[env_name].copy()
+    action_min, action_max = ALL_ACTION_SPACES[env_name]
     state_names = ALL_STATE_NAMES[env_name]
 
     # NOTE: impose boundaries
@@ -179,7 +190,7 @@ def plot_policy(
                 
             Z[i_x, i_y] = policy.model(torch.tensor([state]).float()).item()
 
-    cntr = ax.pcolormesh(X, Y, Z, cmap="coolwarm", vmin=-1, vmax=1)
+    cntr = ax.pcolormesh(X, Y, Z, cmap="coolwarm", vmin=action_min, vmax=action_max)
     if colorbar:
         cbar = fig.colorbar(cntr, ax=ax, shrink=0.5)
         cbar.set_label("action")
