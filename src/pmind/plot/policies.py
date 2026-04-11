@@ -194,7 +194,7 @@ def plot_trajectories(
     
     state_x,
     state_y,
-    traj_length,
+    traj_length=None,
     ax=None,
     pendulum_angle=False,
 ):

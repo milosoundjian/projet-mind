@@ -221,7 +221,6 @@ class TD3(EpochBasedAlgo):
             self.t_target_q_agent_1(rb_workspace, t=1, n_steps=1)
             self.t_target_q_agent_2(rb_workspace, t=1, n_steps=1)
 
-        #
         (
             reward,
             terminated,

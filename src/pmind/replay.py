@@ -338,8 +338,9 @@ def test_rb_uniform_proportions(
             "cfg": cfg,
             "seeds": seeds,
             "type" : "uniform_proportions",
-            "best_policies": best_policies,
-            "replay_buffers": replay_buffers
+            "n_steps": cfg.algorithm.n_steps,
+            "best_policies": best_policies, # proportions x seed
+            "replay_buffers": replay_buffers # proportions x seed
             } 
 
 def test_rb_uniform_proportion(
@@ -440,8 +441,9 @@ def test_rb_noise_levels(
             "cfg": cfg,
             "seeds": seeds,
             "type" : "noise_levels",
-            "best_policies": best_policies,
-            "replay_buffers": replay_buffers
+            "n_steps": cfg.algorithm.n_steps,
+            "best_policies": best_policies, # proportions x seed 
+            "replay_buffers": replay_buffers # proportions x seed 
             } 
 
 def test_rb_noise_level(
