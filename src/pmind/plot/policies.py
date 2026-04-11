@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
+import gymnasium as gym
+
 ENV_NAMES = (
     "CartPoleContinuous-v1",
     "Pendulum-v1",
@@ -47,15 +49,16 @@ EPISODE_LENGTHS = {
 
 
 def plot_rb_space_coverage(
+    env_name,
     rb,
     state_x,
     state_y,
-    state_names=None,
-    state_space=None,
     ax=None,
     colorbar=True,
     pendulum_angle=False,
 ):
+    state_names=ALL_STATE_NAMES[env_name]
+    state_space=ALL_STATE_SPACES[env_name]
     rb_states = rb.variables["env/env_obs"].detach().numpy()
     rb_actions = rb.variables["action"].detach().numpy()
     nb_samples, _, state_dim = rb_states.shape
@@ -112,19 +115,19 @@ def plot_rb_space_coverage(
 
 
 def plot_policy(
+    env_name,
     policy,
     state_x,
     state_y,
-    state_space,
     fixed_state=None,
-    state_names=None,
     ax=None,
     grid_density=50,
     colorbar=True,
     pendulum_angle=False,
 ):
 
-    state_space = state_space.copy()
+    state_space = ALL_STATE_SPACES[env_name].copy()
+    state_names = ALL_STATE_NAMES[env_name]
 
     # NOTE: impose boundaries
     state_space[state_space == np.inf] = 1
@@ -185,17 +188,23 @@ def plot_policy(
 
 
 def plot_trajectories(
-    env,
+    env_name,
     policy,
-    init_space,
     nb_traj,
-    traj_length,
+    
     state_x,
     state_y,
-    state_names=None,
+    traj_length,
     ax=None,
     pendulum_angle=False,
 ):
+    env = gym.make(env_name)
+    state_names = ALL_STATE_NAMES[env_name]
+    init_space = ALL_INIT_SPACES[env_name]
+    state_names=ALL_STATE_NAMES[env_name]
+    if traj_length is None:
+        traj_length = EPISODE_LENGTHS[env_name]
+    
     if ax is None:
         fig, ax = plt.subplots(
             subplot_kw={"projection": "polar"} if pendulum_angle else None
