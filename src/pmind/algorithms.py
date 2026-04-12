@@ -313,8 +313,12 @@ class TD3(EpochBasedAlgo):
         ):
             self.last_policy_update_step = self.nb_steps
             copy_parameters(self.t_actor_agent, self.t_target_actor_agent)
-        
-        if self.nb_steps > 0 and self.nb_steps % self.save_rb_policy_interval == 0:
+
+        if (
+            self.save_rb_policy_interval is not None
+            and self.nb_steps > 0
+            and self.nb_steps % self.save_rb_policy_interval == 0
+        ):
             self.policies.append(self.best_policy)
             
 

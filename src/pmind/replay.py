@@ -2,6 +2,8 @@ from functools import partial
 from typing import Callable, Type
 from collections.abc import Iterable
 from enum import Enum
+import re
+from pathlib import Path
 
 import numpy as np
 
@@ -483,3 +485,23 @@ def test_rb_noise_level(
         "seed": seed,
         "type": "noise_levels",
     }
+
+
+def load_rb_files(directory, action_noises=[0.0]):
+    directory = Path(directory)
+    pattern = re.compile(r"^rb-(-?\d+)-noise-(\d*\.\d+|\d+)\.pt$")
+    
+    result = {}
+
+    for file in directory.iterdir():
+        if file.is_file():
+            match = pattern.match(file.name)
+            if match:
+                reward = int(match.group(1))
+                action_noise = float(match.group(2))
+                if action_noise in action_noises:
+                    if reward not in result:
+                        result[reward] = {}
+                    result[reward][action_noise] = torch.load(file, weights_only=False)
+
+    return result
