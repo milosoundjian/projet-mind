@@ -85,16 +85,17 @@ class ContinuousQAgent(Agent):
             return next(self.buffers()).device
 
 class ContinuousDeterministicActor(Agent):
-    def __init__(self, state_dim, hidden_layers, action_dim):
+    def __init__(self, state_dim, hidden_layers, action_dim, action_scaling=1):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(
             layers, activation=nn.ReLU(), output_activation=nn.Tanh()
         )
+        self.action_scaling = action_scaling
 
     def forward(self, t, **kwargs):
         obs = self.get(("env/env_obs", t)).to(self.get_device())
-        action = self.model(obs)
+        action = self.model(obs) * self.action_scaling
         self.set(("action", t), action)
         
     def to(self, device: torch.types.Device, *args, **kwargs):

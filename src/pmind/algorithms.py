@@ -118,7 +118,7 @@ class TD3(EpochBasedAlgo):
         self.target_critic_2 = copy.deepcopy(self.critic_1).with_prefix("target-critic_2/")
 
         self.actor = ContinuousDeterministicActor(
-            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
+            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size, cfg.action_scaling
         )
         self.target_actor = copy.deepcopy(self.actor)
 

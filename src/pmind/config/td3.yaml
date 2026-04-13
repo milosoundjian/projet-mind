@@ -49,6 +49,7 @@ environments:
     <<: *default_td3
     gym_env:
       env_name: CartPoleContinuous-v1
+    action_scaling: 1
 
     algorithm:
       <<: *default_td3_algorithm
@@ -59,6 +60,7 @@ environments:
     <<: *default_td3
     gym_env:
       env_name: Pendulum-v1
+    action_scaling: 2
 
     algorithm:
       <<: *default_td3_algorithm
@@ -75,6 +77,7 @@ environments:
     <<: *default_td3
     gym_env:
       env_name: MountainCarContinuous-v0
+    action_scaling: 1
 
     algorithm:
       <<: *default_td3_algorithm
