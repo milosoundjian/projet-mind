@@ -3,6 +3,10 @@ experiments/notebooks/outputs/
 
 .vscode/
 
+# d3rlpy
+d3rlpy_data/
+d3rlpy_logs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
