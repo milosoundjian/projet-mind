@@ -541,9 +541,6 @@ def convert_rb_to_dataset(rb, contains_teleportation):
         observations = observations.reshape(nb_transitions*2, -1)
         actions = actions.reshape(nb_transitions*2, -1)
         
-        # rewards = rewards.reshape(nb_transitions*2)
-        # terminals = terminals.reshape(nb_transitions*2)
-        
         rewards = np.array([transition[::-1] for transition in rewards]).reshape(nb_transitions*2)
         terminals = np.array([transition[::-1] for transition in terminals]).reshape(nb_transitions*2)
         # timeouts = np.array([transition[::-1] for transition in timeouts]).reshape(nb_transitions*2)
