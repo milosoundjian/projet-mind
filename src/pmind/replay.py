@@ -12,6 +12,7 @@ import gymnasium as gym
 
 import torch
 
+import bbrl
 from bbrl.agents import Agent, Agents, TemporalAgent
 from bbrl.agents.gymnasium import ParallelGymAgent, make_env
 from bbrl.workspace import Workspace
@@ -282,7 +283,11 @@ def collect_uniform_transitions(
 
 
 def mix_transitions(
-    rb1: ReplayBuffer, rb2: ReplayBuffer, buffer_size: int, proportion: float, seed=int
+    rb1: bbrl.utils.replay_buffer.ReplayBuffer | d3rlpy.dataset.replay_buffer.ReplayBuffer,
+    rb2: bbrl.utils.replay_buffer.ReplayBuffer | d3rlpy.dataset.replay_buffer.ReplayBuffer,
+    buffer_size: int,
+    proportion: float,
+    seed=int,
 ):
     # TODO: set seed actually!
     size1 = int(buffer_size * proportion)
@@ -526,7 +531,7 @@ def convert_rb_to_dataset(rb, contains_teleportation):
     terminals = rb.variables["env/terminated"].numpy()
     timeouts = rb.variables["env/truncated"].numpy()
     nb_transitions = rb.size()
-    
+
     # NOTE: for their dataset, r1 = r(s1, a1) and t1 = t(s1, a1),
     # so rewards and terminals are shifted by 1 compared to BBRL
 
@@ -538,13 +543,17 @@ def convert_rb_to_dataset(rb, contains_teleportation):
         terminals = np.array([transition[1] for transition in terminals])
         timeouts = np.array([transition[1] for transition in timeouts])
     else:
-        observations = observations.reshape(nb_transitions*2, -1)
-        actions = actions.reshape(nb_transitions*2, -1)
-        
-        rewards = np.array([transition[::-1] for transition in rewards]).reshape(nb_transitions*2)
-        terminals = np.array([transition[::-1] for transition in terminals]).reshape(nb_transitions*2)
+        observations = observations.reshape(nb_transitions * 2, -1)
+        actions = actions.reshape(nb_transitions * 2, -1)
+
+        rewards = np.array([transition[::-1] for transition in rewards]).reshape(
+            nb_transitions * 2
+        )
+        terminals = np.array([transition[::-1] for transition in terminals]).reshape(
+            nb_transitions * 2
+        )
         # timeouts = np.array([transition[::-1] for transition in timeouts]).reshape(nb_transitions*2)
-        timeouts = (np.arange(nb_transitions*2) %2) 
+        timeouts = np.arange(nb_transitions * 2) % 2
 
     timeouts = timeouts & (~terminals)  # if terminated, then it's not timeout
     dataset = d3rlpy.dataset.MDPDataset(
