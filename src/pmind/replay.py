@@ -58,6 +58,190 @@ def collect_policy_transitions(
     return rb
 
 
+def format_transition_tensor(item, dtype=torch.float32):
+    return torch.as_tensor(item, dtype=dtype).unsqueeze(0)
+
+
+def extract_single_action(policy_agent: Agent, obs: np.ndarray) -> np.ndarray:
+    workspace = Workspace()
+    workspace.set("env/env_obs", 0, format_transition_tensor(obs))
+    policy_agent(workspace, t=0)
+    return workspace.get("action", 0).detach().cpu().numpy()[0]
+
+
+def set_env_state_from_obs(env: gym.Env, obs: np.ndarray):
+    env_type = SupportedEnv(env.unwrapped.__class__.__name__)
+
+    if env_type == SupportedEnv.PENDULUM:
+        cos_th, sin_th, th_dot = obs
+        th = np.arctan2(sin_th, cos_th)
+        env.unwrapped.state = np.array([th, th_dot], dtype=np.float32)
+
+    elif env_type in {SupportedEnv.CARTPOLE, SupportedEnv.MOUNTAINCAR}:
+        env.unwrapped.state = np.asarray(obs, dtype=np.float32).copy()
+
+    else:
+        raise NotImplementedError(
+            f"Branching buffer not implemented for {env_type.value}"
+        )
+
+
+def put_one_transition(
+    rb: ReplayBuffer,
+    obs,
+    action,
+    next_obs,
+    reward,
+    terminated,
+    truncated,
+    timestep,
+):
+    workspace = Workspace()
+
+    workspace.set("env/env_obs", 0, format_transition_tensor(obs))
+    workspace.set("env/env_obs", 1, format_transition_tensor(next_obs))
+
+    workspace.set("action", 0, format_transition_tensor(action))
+    workspace.set("action", 1, format_transition_tensor(np.zeros_like(action)))
+
+    workspace.set("env/terminated", 0, format_transition_tensor(False, torch.bool))
+    workspace.set(
+        "env/terminated", 1, format_transition_tensor(terminated, torch.bool)
+    )
+
+    workspace.set("env/truncated", 0, format_transition_tensor(False, torch.bool))
+    workspace.set("env/truncated", 1, format_transition_tensor(truncated, torch.bool))
+
+    done = terminated or truncated
+    workspace.set("env/done", 0, format_transition_tensor(False, torch.bool))
+    workspace.set("env/done", 1, format_transition_tensor(done, torch.bool))
+
+    workspace.set("env/reward", 0, format_transition_tensor(0.0))
+    workspace.set("env/reward", 1, format_transition_tensor(reward))
+
+    workspace.set("env/cumulated_reward", 0, format_transition_tensor(0.0))
+    workspace.set("env/cumulated_reward", 1, format_transition_tensor(reward))
+
+    workspace.set("env/timestep", 0, format_transition_tensor(timestep, torch.int64))
+    workspace.set(
+        "env/timestep", 1, format_transition_tensor(timestep + 1, torch.int64)
+    )
+
+    rb.put(workspace.get_transitions())
+
+
+def collect_branching_noisy_policy_transitions(
+    policy_agent: Agent,
+    env_name: str,
+    buffer_size: int,
+    depth: int,
+    k: int,
+    action_noise: float,
+    print_progress: bool = True,
+):
+    """
+    Collect transitions by following a noiseless policy, then branching noisy rollouts
+    from each visited observation.
+
+    For each anchor obs from the noiseless policy:
+      - start k branch rollouts from that obs
+      - follow policy + truncated Gaussian noise for at most depth steps
+      - store all branch transitions
+    """
+    if depth <= 0:
+        raise ValueError("depth must be > 0")
+    if k <= 0:
+        raise ValueError("k must be > 0")
+    if action_noise < 0:
+        raise ValueError("action_noise must be >= 0")
+
+    anchor_env = gym.make(env_name)
+    branch_env = gym.make(env_name)
+
+    noise_agent = AddTruncatedGaussianNoise(
+        action_noise=action_noise,
+        action_space=branch_env.action_space,
+    )
+
+    rb = ReplayBuffer(buffer_size)
+    anchor_obs, _ = anchor_env.reset()
+
+    pbar = (
+        tqdm(total=buffer_size, desc="Branching noisy transitions")
+        if print_progress
+        else None
+    )
+
+    try:
+        while rb.size() < buffer_size:
+            # Step 1: follow noiseless policy by one step
+            anchor_action = extract_single_action(policy_agent, anchor_obs)
+            next_anchor_obs, _, anchor_terminated, anchor_truncated, _ = (
+                anchor_env.step(anchor_action)
+            )
+
+            # Step 2: branch k noisy rollouts from the anchor obs
+            for _ in range(k):
+                if rb.size() >= buffer_size:
+                    break
+
+                branch_env.reset()
+                set_env_state_from_obs(branch_env, anchor_obs)
+
+                branch_obs = np.asarray(anchor_obs, dtype=np.float32).copy()
+
+                for t in range(depth):
+                    if rb.size() >= buffer_size:
+                        break
+
+                    workspace = Workspace()
+                    workspace.set(
+                        "env/env_obs", 0, format_transition_tensor(branch_obs)
+                    )
+
+                    policy_agent(workspace, t=0)
+                    noise_agent(workspace, t=0)
+
+                    noisy_action = workspace.get("action", 0).detach().cpu().numpy()[0]
+
+                    next_branch_obs, reward, terminated, truncated, _ = branch_env.step(
+                        noisy_action
+                    )
+
+                    put_one_transition(
+                        rb=rb,
+                        obs=branch_obs,
+                        action=noisy_action,
+                        next_obs=next_branch_obs,
+                        reward=reward,
+                        terminated=terminated,
+                        truncated=truncated,
+                        timestep=t,
+                    )
+
+                    if pbar is not None:
+                        pbar.update(1)
+
+                    if terminated or truncated:
+                        break
+
+                    branch_obs = next_branch_obs
+
+            # Continue noiseless anchor trajectory
+            if anchor_terminated or anchor_truncated:
+                anchor_obs, _ = anchor_env.reset()
+            else:
+                anchor_obs = next_anchor_obs
+
+    finally:
+        if pbar is not None:
+            pbar.close()
+        anchor_env.close()
+        branch_env.close()
+
+    return rb
+
+
 class SupportedEnv(Enum):
     CARTPOLE = "ContinuousCartPoleEnv"
     PENDULUM = "PendulumEnv"
