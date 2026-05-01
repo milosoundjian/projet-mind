@@ -467,15 +467,30 @@ def collect_uniform_transitions(
 
 
 def mix_transitions(
-    rb1: bbrl.utils.replay_buffer.ReplayBuffer | d3rlpy.dataset.replay_buffer.ReplayBuffer,
-    rb2: bbrl.utils.replay_buffer.ReplayBuffer | d3rlpy.dataset.replay_buffer.ReplayBuffer,
+    rb1: bbrl.utils.replay_buffer.ReplayBuffer
+    | d3rlpy.dataset.replay_buffer.ReplayBuffer,
+    rb2: bbrl.utils.replay_buffer.ReplayBuffer
+    | d3rlpy.dataset.replay_buffer.ReplayBuffer,
     buffer_size: int,
     proportion: float,
     seed=int,
 ):
     # TODO: set seed actually!
+    if proportion == 1.0 and rb1.size() == buffer_size:
+        return rb1
+    if proportion == 0.0 and rb2.size() == buffer_size:
+        return rb2
     size1 = int(buffer_size * proportion)
     size2 = buffer_size - size1
+    if isinstance(rb1, d3rlpy.dataset.replay_buffer.ReplayBuffer) and isinstance(
+        rb2, d3rlpy.dataset.replay_buffer.ReplayBuffer
+    ):
+        # TODO: this implementation stratifies batch sampling 
+        # (which is different from our BBRL implementation)
+        # TODO: buffer size is not taken into account here
+        return d3rlpy.dataset.MixedReplayBuffer(
+            rb2, rb1, secondary_mix_ratio=proportion
+        )
     transitions1 = rb1.get_shuffled(size1)
     transitions2 = rb2.get_shuffled(size2)
     rb_mixed = ReplayBuffer(buffer_size)
@@ -617,6 +632,7 @@ def test_rb_noise_levels(
             # Set the seeds
             np.random.seed(seed)
             torch.manual_seed(seed)
+            d3rlpy.seed(seed)
 
             cfg.algorithm.seed = seed
             offline_agent = agent_constructor(cfg, offline=True).to(device)
@@ -737,6 +753,7 @@ def convert_rb_to_dataset(rb, contains_teleportation):
             nb_transitions * 2
         )
         # timeouts = np.array([transition[::-1] for transition in timeouts]).reshape(nb_transitions*2)
+        # Split into one-transition episodes
         timeouts = np.arange(nb_transitions * 2) % 2
 
     timeouts = timeouts & (~terminals)  # if terminated, then it's not timeout

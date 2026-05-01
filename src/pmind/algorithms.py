@@ -9,6 +9,15 @@ from bbrl_utils.algorithms import EpochBasedAlgo
 from bbrl.visu.plot_policies import plot_policy
 from bbrl.utils.replay_buffer import ReplayBuffer
 
+import d3rlpy
+from d3rlpy.metrics import EnvironmentEvaluator
+from d3rlpy.algos import DQNConfig, TD3Config
+
+import numpy as np
+
+import gymnasium as gym
+import bbrl_gymnasium
+
 from pmind.agents import (
     DiscreteQAgent,
     ContinuousQAgent,
@@ -20,6 +29,7 @@ from pmind.agents import (
     AddNoiseClip,
 )
 from pmind.losses import compute_critic_loss, compute_actor_loss
+
 
 class DQN(EpochBasedAlgo):
     def __init__(self, cfg):
@@ -49,6 +59,7 @@ class DQN(EpochBasedAlgo):
 
         self.last_critic_update_step = 0
 
+
 class DDPG(EpochBasedAlgo):
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -73,22 +84,22 @@ class DDPG(EpochBasedAlgo):
         noise_agent = AddGaussianNoise(cfg.algorithm.action_noise)
 
         self.train_policy = Agents(self.actor, noise_agent)
-        self.eval_policy = self.actor # NOTE: pure exploitation for evaluation
+        self.eval_policy = self.actor  # NOTE: pure exploitation for evaluation
 
         # [[STUDENT]]...
         self.t_q_agent = TemporalAgent(self.critic)
         self.t_target_q_agent = TemporalAgent(self.target_critic)
         self.t_actor_agent = TemporalAgent(self.actor)
 
-
         # Configure the optimizer
         self.actor_optimizer = setup_optimizer(cfg.actor_optimizer, self.actor)
         self.critic_optimizer = setup_optimizer(cfg.critic_optimizer, self.critic)
 
+
 class TD3(EpochBasedAlgo):
     def __init__(self, cfg, offline=False):
         super().__init__(cfg)
-        
+
         self.device = torch.device("cpu")
 
         self.offline = offline
@@ -97,10 +108,10 @@ class TD3(EpochBasedAlgo):
         self.intermediate_rewards = cfg.algorithm.intermediate_rewards
         self.intermediate_policies = [None] * len(self.intermediate_rewards)
         self.intermediate_index = 0
-        
+
         self.save_rb_policy_interval = cfg.algorithm.get("save_rb_policy_interval")
         self.policies = []
-        
+
         # Define the intermediate_n_steps for offline
         self.intermediate_n_steps = cfg.algorithm.intermediate_n_steps
 
@@ -114,11 +125,18 @@ class TD3(EpochBasedAlgo):
             obs_size, cfg.algorithm.architecture.critic_hidden_size, act_size
         ).with_prefix("critic_1/")
         self.critic_2 = copy.deepcopy(self.critic_1).with_prefix("critic_2/")
-        self.target_critic_1 = copy.deepcopy(self.critic_1).with_prefix("target-critic_1/")
-        self.target_critic_2 = copy.deepcopy(self.critic_1).with_prefix("target-critic_2/")
+        self.target_critic_1 = copy.deepcopy(self.critic_1).with_prefix(
+            "target-critic_1/"
+        )
+        self.target_critic_2 = copy.deepcopy(self.critic_1).with_prefix(
+            "target-critic_2/"
+        )
 
         self.actor = ContinuousDeterministicActor(
-            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size, cfg.action_scaling
+            obs_size,
+            cfg.algorithm.architecture.actor_hidden_size,
+            act_size,
+            cfg.action_scaling,
         )
         self.target_actor = copy.deepcopy(self.actor)
 
@@ -129,7 +147,7 @@ class TD3(EpochBasedAlgo):
             self.train_policy = Agents(self.actor, noise_agent)
         else:
             self.train_policy = Agents(self.actor)
-        self.eval_policy = self.actor # NOTE: pure exploitation for evaluation
+        self.eval_policy = self.actor  # NOTE: pure exploitation for evaluation
 
         # TD3 SPECIFIC
         if not self.offline:
@@ -149,17 +167,16 @@ class TD3(EpochBasedAlgo):
         else:
             self.t_target_actor_agent = TemporalAgent(Agents(self.target_actor))
 
-
         # Configure the optimizer
         self.actor_optimizer = setup_optimizer(cfg.actor_optimizer, self.actor)
         self.critic_optimizer_1 = setup_optimizer(cfg.critic_optimizer, self.critic_1)
         self.critic_optimizer_2 = setup_optimizer(cfg.critic_optimizer, self.critic_2)
 
         self.last_policy_update_step = 0
-    
+
     def to(self, device: torch.types.Device):
         self.device = device
-        
+
         self.critic_1.to(device)
         self.critic_2.to(device)
         self.target_critic_1.to(device)
@@ -169,16 +186,18 @@ class TD3(EpochBasedAlgo):
         self.target_actor.to(device)
 
         return self
-    
+
     def get_device(self):
         return self.device
 
-    def train(self, rb: ReplayBuffer|None = None):
+    def train(self, rb: ReplayBuffer | None = None):
         """
         :param rb: The replay buffer if doing online training
         """
         if self.offline:
-            assert isinstance(rb, ReplayBuffer), "Replay buffer is necessary for offline learning"
+            assert isinstance(rb, ReplayBuffer), (
+                "Replay buffer is necessary for offline learning"
+            )
             rb.to(self.get_device())
             self.train_offline(rb)
         else:
@@ -199,7 +218,7 @@ class TD3(EpochBasedAlgo):
                 copy.deepcopy(self.best_policy),
             )
             self.intermediate_index += 1
-    
+
     def get_learned_policies(self):
         learned_policies = {}
         for reward_policy in self.intermediate_policies:
@@ -320,7 +339,6 @@ class TD3(EpochBasedAlgo):
             and self.nb_steps % self.save_rb_policy_interval == 0
         ):
             self.policies.append(self.best_policy)
-            
 
         # Evaluation
         if self.evaluate():
@@ -352,7 +370,7 @@ class TD3(EpochBasedAlgo):
         # NOTE: no self.train_agent(...) performed
         steps_pb = tqdm(range(self.cfg.algorithm.n_steps))
         for step in steps_pb:
-            self.nb_steps = step+1
+            self.nb_steps = step + 1
 
             # Set description
             steps_pb.set_description(
@@ -363,7 +381,9 @@ class TD3(EpochBasedAlgo):
 
             # Sample transitions from a fixed `replay_buffer`
             # NOTE: modifications to this workspace don't affect rb
-            rb_workspace = self.replay_buffer.get_shuffled(self.cfg.algorithm.batch_size)
+            rb_workspace = self.replay_buffer.get_shuffled(
+                self.cfg.algorithm.batch_size
+            )
 
             self.learn_loop(rb_workspace)
 
@@ -375,7 +395,6 @@ class OfflineTD3(EpochBasedAlgo):
         print("`OfflineTD3` deprecated use `TD3` with parameter `offline=True`")
         super().__init__(cfg)
 
-
         # Define the agents and optimizers for TD3
 
         # ADAPTED FROM DDPG:
@@ -386,8 +405,12 @@ class OfflineTD3(EpochBasedAlgo):
             obs_size, cfg.algorithm.architecture.critic_hidden_size, act_size
         ).with_prefix("critic_1/")
         self.critic_2 = copy.deepcopy(self.critic_1).with_prefix("critic_2/")
-        self.target_critic_1 = copy.deepcopy(self.critic_1).with_prefix("target-critic_1/")
-        self.target_critic_2 = copy.deepcopy(self.critic_1).with_prefix("target-critic_2/")
+        self.target_critic_1 = copy.deepcopy(self.critic_1).with_prefix(
+            "target-critic_1/"
+        )
+        self.target_critic_2 = copy.deepcopy(self.critic_1).with_prefix(
+            "target-critic_2/"
+        )
 
         self.actor = ContinuousDeterministicActor(
             obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
@@ -395,7 +418,7 @@ class OfflineTD3(EpochBasedAlgo):
         self.target_actor = copy.deepcopy(self.actor)
 
         self.train_policy = Agents(self.actor)
-        self.eval_policy = self.actor # NOTE: pure exploitation for evaluation
+        self.eval_policy = self.actor  # NOTE: pure exploitation for evaluation
 
         # TD3 SPECIFIC
 
@@ -406,11 +429,129 @@ class OfflineTD3(EpochBasedAlgo):
 
         self.t_target_actor_agent = TemporalAgent(Agents(self.target_actor))
 
-
         # Configure the optimizer
         self.actor_optimizer = setup_optimizer(cfg.actor_optimizer, self.actor)
         self.critic_optimizer_1 = setup_optimizer(cfg.critic_optimizer, self.critic_1)
         self.critic_optimizer_2 = setup_optimizer(cfg.critic_optimizer, self.critic_2)
 
         self.last_policy_update_step = 0
+
+
+class BBRLStyleAlgo:
+    def __init__(self, cfg, offline=True):
+        if not offline:
+            raise NotImplementedError
         
+        env = gym.make(cfg.gym_env.env_name)
+        self.action_scaler = d3rlpy.preprocessing.MinMaxActionScaler(
+            minimum=np.array(-1.0 * cfg.action_scaling),
+            maximum=np.array(1.0 * cfg.action_scaling),
+        )
+        self.critic_encoder_factory = d3rlpy.models.VectorEncoderFactory(
+            hidden_units=cfg.algorithm.architecture.critic_hidden_size,
+            activation="tanh",
+        )
+
+        self.actor_encoder_factory = d3rlpy.models.VectorEncoderFactory(
+            hidden_units=cfg.algorithm.architecture.actor_hidden_size,
+            activation="tanh",
+        )
+
+        # Setup algorithm
+        algo = self.setup_algo(cfg)
+
+        # Initialize NN with right obs and action dims
+        algo.build_with_env(env)
+
+        # Setup metrics
+
+        # This metric suggests how Q functions overfit to training sets.
+        # If the TD error is large, the Q functions are overfitting.
+        # td_error_evaluator = TDErrorEvaluator(episodes=dataset.episodes)
+
+        env_evaluator = EnvironmentEvaluator(env, n_trials=10)
+
+        rewards = env_evaluator(algo, dataset=None)
+        print(f"Reward at initialization: {rewards}")
+
+        self.cfg = cfg
+        self.algo = algo
+        self.env_evaluator = env_evaluator
+
+    def setup_algo(self, cfg):
+        raise NotImplementedError
+
+    def to(self, device):
+        # TODO: implement
+        return self
+
+    def train(self, rb):
+        pbar = tqdm(
+            total=int(self.cfg.algorithm.n_steps / self.cfg.algorithm.eval_interval)
+        )
+        print(self.cfg.algorithm.n_steps)
+        # Offline training
+        offline_log = self.algo.fit(
+            rb,
+            n_steps=self.cfg.algorithm.n_steps,
+            n_steps_per_epoch=self.cfg.algorithm.eval_interval,
+            evaluators={
+                # 'td_error': td_error_evaluator,
+                "environment": self.env_evaluator
+            },
+            show_progress=False,
+            epoch_callback=lambda algo, epoch, total_step: pbar.update(1),
+        )
+
+        pbar.close()
+
+        self.offline_log = offline_log
+
+    @property
+    def eval_rewards(self):
+        return np.array([log["environment"] for epoch, log in self.offline_log])
+
+    @property
+    def policies(self):
+        # TODO: implement
+        return []
+
+    @property
+    def best_policy(self):
+        # TODO: understand how to get the best policy...
+        return None
+
+
+class BBRLStyleTD3(BBRLStyleAlgo):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+
+    def setup_algo(self, cfg):
+        return d3rlpy.algos.TD3Config( 
+            gamma=cfg.algorithm.discount_factor,
+            actor_learning_rate=cfg.actor_optimizer.lr,
+            critic_learning_rate=cfg.critic_optimizer.lr,
+            batch_size=cfg.algorithm.batch_size,
+            tau=cfg.algorithm.tau_target,
+            action_scaler=self.action_scaler,
+            actor_encoder_factory=self.critic_encoder_factory,
+            critic_encoder_factory=self.actor_encoder_factory,
+            target_smoothing_clip=cfg.algorithm.target_policy_noise_clip,
+            target_smoothing_sigma=cfg.algorithm.target_policy_noise,  # TODO: correct?
+        ).create(device=None)
+
+class BBRLStyleIQL(BBRLStyleAlgo):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+
+    def setup_algo(self, cfg):
+        return d3rlpy.algos.IQLConfig( 
+            gamma=cfg.algorithm.discount_factor,
+            actor_learning_rate=cfg.actor_optimizer.lr,
+            critic_learning_rate=cfg.critic_optimizer.lr,
+            batch_size=cfg.algorithm.batch_size,
+            tau=cfg.algorithm.tau_target,
+            action_scaler=self.action_scaler,
+            actor_encoder_factory=self.critic_encoder_factory,
+            critic_encoder_factory=self.actor_encoder_factory,
+        ).create(device=None)
