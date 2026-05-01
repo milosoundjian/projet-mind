@@ -1,4 +1,7 @@
 import copy
+import re
+import sys
+from contextlib import contextmanager
 import torch
 
 from bbrl_utils.notebook import tqdm
@@ -438,12 +441,35 @@ class OfflineTD3(EpochBasedAlgo):
 
         self.last_policy_update_step = 0
 
+@contextmanager
+def redirect_stdout_reward_to_tqdm(pbar):
+    class TqdmRewardOutput:
+        def __init__(self, pbar):
+            self.buffer = ""
+            self.pbar = pbar
 
+        def write(self, msg):
+            match_reward = re.search(r"'environment':\s*([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)", msg)
+            match_step = re.search(r"step=\s*([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)", msg)
+            reward = float(match_reward.group(1)) if match_reward else None
+            step = int(match_step.group(1)) if match_step else None
+            if step is not None and reward is not None:
+                self.pbar.set_description(f"step: {step} reward: {reward:.2f}")
+
+        def flush(self):
+            pass  
+    old_stdout = sys.stdout
+    sys.stdout = TqdmRewardOutput(pbar)
+    try:
+        yield
+    finally:
+        sys.stdout = old_stdout
+            
 class BBRLStyleAlgo:
     def __init__(self, cfg, offline=True):
         if not offline:
             raise NotImplementedError
-        
+
         env = gym.make(cfg.gym_env.env_name)
         self.action_scaler = d3rlpy.preprocessing.MinMaxActionScaler(
             minimum=np.array(-1.0 * cfg.action_scaling),
@@ -473,8 +499,7 @@ class BBRLStyleAlgo:
 
         env_evaluator = EnvironmentEvaluator(env, n_trials=cfg.algorithm.nb_evals)
 
-        rewards = env_evaluator(algo, dataset=None)
-        print(f"Reward at initialization: {rewards}")
+        self.initial_reward = env_evaluator(algo, dataset=None)
 
         self.cfg = cfg
         self.algo = algo
@@ -489,24 +514,28 @@ class BBRLStyleAlgo:
 
     def train(self, rb):
         dataset = convert_rb_to_dataset(rb)
-        pbar = tqdm(
-            total=int(self.cfg.algorithm.n_steps / self.cfg.algorithm.eval_interval)
-        )
-        print(self.cfg.algorithm.n_steps)
-        # Offline training
-        offline_log = self.algo.fit(
-            dataset,
-            n_steps=self.cfg.algorithm.n_steps,
-            n_steps_per_epoch=self.cfg.algorithm.eval_interval,
-            evaluators={
-                # 'td_error': td_error_evaluator,
-                "environment": self.env_evaluator
-            },
-            show_progress=False,
-            epoch_callback=lambda algo, epoch, total_step: pbar.update(1),
-        )
 
-        pbar.close()
+        with tqdm(
+            total=int(self.cfg.algorithm.n_steps / self.cfg.algorithm.eval_interval), desc=f"step: 0 reward={self.initial_reward:.2f}"
+        ) as pbar:
+            self.pbar = pbar
+            
+            with redirect_stdout_reward_to_tqdm(pbar):
+
+                offline_log = self.algo.fit(
+                    dataset,
+                    n_steps=self.cfg.algorithm.n_steps,
+                    n_steps_per_epoch=self.cfg.algorithm.eval_interval,
+                    evaluators={
+                        # 'td_error': td_error_evaluator,
+                        "environment": self.env_evaluator
+                    },
+                    show_progress=False,
+                    # Disable saving
+                    logger_adapter=d3rlpy.logging.NoopAdapterFactory(),
+                    save_interval=np.inf,  # don't save anything
+                    epoch_callback=lambda algo, epoch, total_step: pbar.update(1),
+                )
 
         self.offline_log = offline_log
 
@@ -530,7 +559,7 @@ class BBRLStyleTD3(BBRLStyleAlgo):
         super().__init__(cfg, offline)
 
     def setup_algo(self, cfg):
-        return d3rlpy.algos.TD3Config( 
+        return d3rlpy.algos.TD3Config(
             gamma=cfg.algorithm.discount_factor,
             actor_learning_rate=cfg.actor_optimizer.lr,
             critic_learning_rate=cfg.critic_optimizer.lr,
@@ -543,12 +572,13 @@ class BBRLStyleTD3(BBRLStyleAlgo):
             target_smoothing_sigma=cfg.algorithm.target_policy_noise,  # TODO: correct?
         ).create(device=None)
 
+
 class BBRLStyleIQL(BBRLStyleAlgo):
     def __init__(self, cfg, offline=True):
         super().__init__(cfg, offline)
 
     def setup_algo(self, cfg):
-        return d3rlpy.algos.IQLConfig( 
+        return d3rlpy.algos.IQLConfig(
             gamma=cfg.algorithm.discount_factor,
             actor_learning_rate=cfg.actor_optimizer.lr,
             critic_learning_rate=cfg.critic_optimizer.lr,
