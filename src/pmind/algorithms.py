@@ -30,6 +30,8 @@ from pmind.agents import (
 )
 from pmind.losses import compute_critic_loss, compute_actor_loss
 
+from pmind.replay import convert_rb_to_dataset
+
 
 class DQN(EpochBasedAlgo):
     def __init__(self, cfg):
@@ -469,7 +471,7 @@ class BBRLStyleAlgo:
         # If the TD error is large, the Q functions are overfitting.
         # td_error_evaluator = TDErrorEvaluator(episodes=dataset.episodes)
 
-        env_evaluator = EnvironmentEvaluator(env, n_trials=10)
+        env_evaluator = EnvironmentEvaluator(env, n_trials=cfg.algorithm.nb_evals)
 
         rewards = env_evaluator(algo, dataset=None)
         print(f"Reward at initialization: {rewards}")
@@ -486,13 +488,14 @@ class BBRLStyleAlgo:
         return self
 
     def train(self, rb):
+        dataset = convert_rb_to_dataset(rb)
         pbar = tqdm(
             total=int(self.cfg.algorithm.n_steps / self.cfg.algorithm.eval_interval)
         )
         print(self.cfg.algorithm.n_steps)
         # Offline training
         offline_log = self.algo.fit(
-            rb,
+            dataset,
             n_steps=self.cfg.algorithm.n_steps,
             n_steps_per_epoch=self.cfg.algorithm.eval_interval,
             evaluators={
@@ -523,8 +526,8 @@ class BBRLStyleAlgo:
 
 
 class BBRLStyleTD3(BBRLStyleAlgo):
-    def __init__(self, cfg):
-        super().__init__(cfg)
+    def __init__(self, cfg, offline=True):
+        super().__init__(cfg, offline)
 
     def setup_algo(self, cfg):
         return d3rlpy.algos.TD3Config( 
@@ -541,8 +544,8 @@ class BBRLStyleTD3(BBRLStyleAlgo):
         ).create(device=None)
 
 class BBRLStyleIQL(BBRLStyleAlgo):
-    def __init__(self, cfg):
-        super().__init__(cfg)
+    def __init__(self, cfg, offline=True):
+        super().__init__(cfg, offline)
 
     def setup_algo(self, cfg):
         return d3rlpy.algos.IQLConfig( 
