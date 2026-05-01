@@ -25,7 +25,7 @@ from tqdm.notebook import tqdm
 
 from pmind.visualization import plot_perf_vs_rb_composition
 
-from pmind.algorithms import TD3
+# from pmind.algorithms import TD3
 from pmind.agents import AddTruncatedGaussianNoise
 
 
