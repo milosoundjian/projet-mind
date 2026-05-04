@@ -541,7 +541,10 @@ class BBRLStyleAlgo:
 
     @property
     def eval_rewards(self):
-        return np.array([log["environment"] for epoch, log in self.offline_log])
+        # NOTE: d3rlpy directly averages across the evaluation environments and thus NUM_ENV dimension is 1
+        return np.array(
+            [log["environment"] for epoch, log in self.offline_log]
+        ).reshape(-1, 1)
 
     @property
     def policies(self):
