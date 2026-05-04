@@ -73,7 +73,7 @@ def load_results(env_names, input_dir, from_single_experiments=True):
                                     torch.load(
                                         f"{dirname}/result-{env_name}-{exploit_reward}-{proportion}-{seed}.pt",
                                         weights_only=False,
-                                    )["performances"]
+                                    )["performances"]#[0].reshape(-1,1)
                                     for seed in seeds
                                 ],
                                 -1,
