@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def load_results(env_names, input_dir, from_single_experiments=True):
+def load_results(env_names, input_dir, from_single_experiments=True, seeds_to_exclude=[]):
 
     if from_single_experiments:
         pattern = re.compile(
@@ -48,6 +48,8 @@ def load_results(env_names, input_dir, from_single_experiments=True):
 
                 if results_found:
                     seeds = sorted(seeds)
+                    if seeds_to_exclude:
+                        seeds = [seed for seed in seeds if seed not in seeds_to_exclude]
                     proportions = sorted(proportions)
                     exploit_rewards = sorted(exploit_rewards)
 
