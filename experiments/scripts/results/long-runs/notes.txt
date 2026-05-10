@@ -1,3 +1,0 @@
-noise_levels in this folder means branching noise
-noise_levels_action means action noise
-for uniform_proportions we have only used bbrl since we don't compare it with IQL
