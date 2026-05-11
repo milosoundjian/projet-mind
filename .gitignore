@@ -1,5 +1,13 @@
 local/
-experiments/notebooks/outputs/
+outputs/
+
+# heavy results
+results/runs/*
+results/models/*
+
+# keep directory placeholders
+!results/runs/.gitkeep
+!results/models/.gitkeep
 
 .vscode/
 

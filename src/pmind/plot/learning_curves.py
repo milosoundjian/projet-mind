@@ -8,7 +8,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def load_results(env_names, input_dir, from_single_experiments=True, seeds_to_exclude=[]):
+def load_experiment_results(
+    env_names, input_dir, from_single_experiments=True, seeds_to_exclude=[]
+):
 
     if from_single_experiments:
         pattern = re.compile(
@@ -26,28 +28,37 @@ def load_results(env_names, input_dir, from_single_experiments=True, seeds_to_ex
                 proportions = set()
                 exploit_rewards = set()
                 for dirname in os.listdir(
-                    input_dir + f"results-{rb_composition_type}/"
+                    input_dir / f"results-{rb_composition_type}/"
                 ):
-                    dir_seeds = set()
+                    dir_seeds = {}
                     if env_name in dirname:
                         print(dirname)
                         for fname in os.listdir(
-                            input_dir + f"results-{rb_composition_type}/" + dirname
+                            input_dir / f"results-{rb_composition_type}/" / dirname
                         ):
                             match = pattern.search(fname)
                             if match:
                                 results_found = True
                                 info = match.groupdict()
-                                exploit_rewards.add(int(info["reward"]))
-                                proportions.add(float(info["prop"]))
-                                dir_seeds.add(int(info["seed"]))
-                        if len(seeds) == 0:
-                            seeds = dir_seeds
-                        else:
-                            seeds &= dir_seeds
+                                reward = int(info["reward"])
+                                prop = float(info["prop"])
+                                seed = int(info["seed"])
+                                exploit_rewards.add(reward)
+                                proportions.add(prop)
+                                if (reward, prop) not in dir_seeds:
+                                    dir_seeds[(reward, prop)] = set()
+                                dir_seeds[(reward, prop)].add(seed)
+                        
+                        for single_experiment_seeds in dir_seeds.values():
+     
+                            if len(seeds) == 0:
+                                seeds = single_experiment_seeds
+                            else:
+                                seeds &= single_experiment_seeds
 
                 if results_found:
                     seeds = sorted(seeds)
+                    print(f"{len(seeds)} seeds kept")
                     if seeds_to_exclude:
                         seeds = [seed for seed in seeds if seed not in seeds_to_exclude]
                     proportions = sorted(proportions)
@@ -75,7 +86,7 @@ def load_results(env_names, input_dir, from_single_experiments=True, seeds_to_ex
                                     torch.load(
                                         f"{dirname}/result-{env_name}-{exploit_reward}-{proportion}-{seed}.pt",
                                         weights_only=False,
-                                    )["performances"]#[0].reshape(-1,1)
+                                    )["performances"]  # [0].reshape(-1,1)
                                     for seed in seeds
                                 ],
                                 -1,
@@ -101,6 +112,37 @@ def load_results(env_names, input_dir, from_single_experiments=True, seeds_to_ex
                         exploit_performance
                     ] = torch.load(intermediate_path, weights_only=False)
     return all_performances
+
+def load_all_experiments(
+    experiments,
+    results_dir,
+    env_names=["CartPoleContinuous-v1", "Pendulum-v1", "MountainCarContinuous-v0"],
+):
+    from collections import defaultdict
+    def nested_dict():
+        return defaultdict(nested_dict)
+    
+    all_logs = nested_dict()
+    for experiment in experiments:
+        print(f"EXPERIMENT: {experiment}")
+        library, algo, unif, noise, length = experiment.split("-")
+        experiments_logs = load_experiment_results(
+            env_names=env_names,
+            input_dir=results_dir / experiment,
+            from_single_experiments=True,
+            seeds_to_exclude=[],
+        )
+        
+        for rb_type in ("unif", "action", "branch"):
+            all_logs[length][library][algo][rb_type] = None
+            
+        if unif:
+            all_logs[length][library][algo][unif] = experiments_logs["uniform_proportions"]
+
+        if noise:
+            all_logs[length][library][algo][noise] = experiments_logs["noise_levels"]
+            
+    return all_logs
 
 
 def generate_colors(n, s=0.7, v=0.9):
@@ -256,7 +298,6 @@ def plot_learning_curves(
         )
 
         if plot_std:
-            
             ax.fill_between(
                 (np.arange(len(learning_curves[i_prop])) + 1) * eval_interval,
                 agg_perf - std_perf,
