@@ -1,7 +1,11 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
-EXPERIMENTS_DIR = ROOT / "experiments"
-RESULTS_DIR = EXPERIMENTS_DIR / "results"
-FIGURES_DIR = EXPERIMENTS_DIR / "figures"
-MODELS_DIR = EXPERIMENTS_DIR / "models"
+
+NOTEBOOKS_DIR = ROOT / "notebooks"
+RESULTS_DIR = ROOT / "results"
+SCRIPTS_DIR = ROOT / "scripts"
+
+MODELS_DIR = RESULTS_DIR / "models"
+FIGURES_DIR = RESULTS_DIR / "figures"
+RUNS_DIR = RESULTS_DIR / "runs"
