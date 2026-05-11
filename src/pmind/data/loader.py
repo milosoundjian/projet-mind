@@ -120,13 +120,13 @@ def load_experiment_results(
                                 seeds &= single_experiment_seeds
 
                 if results_found:
-                    seeds = sorted(seeds)
+                    seeds = sorted(seeds, key=float)
                     if verbose:
                         print(f"{len(seeds)} seeds kept")
                     if seeds_to_exclude:
                         seeds = [seed for seed in seeds if seed not in seeds_to_exclude]
-                    proportions = sorted(proportions)
-                    exploit_rewards = sorted(exploit_rewards)
+                    proportions = sorted(proportions, key=float)
+                    exploit_rewards = sorted(exploit_rewards, key=float)
 
                     for exploit_reward in exploit_rewards:
                         dirname = f"{input_dir}/results-{rb_composition_type}/results-{env_name}-{exploit_reward}"
@@ -141,7 +141,7 @@ def load_experiment_results(
                             "eval_interval": d_ref["eval_interval"],
                             "cfg": d_ref["cfg"],
                             "seeds": seeds,
-                            "type": d_ref["type"] + "s",
+                            "type": d_ref["type"] + "s" if not d_ref["type"].endswith("s") else d_ref["type"],
                         }
                         # TODO: add asserts that all files have consistent metadata
                         test_log["performances"] = [
