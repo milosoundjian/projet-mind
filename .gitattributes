@@ -1,0 +1,2 @@
+results/runs/** filter=lfs diff=lfs merge=lfs -text
+results/models/** filter=lfs diff=lfs merge=lfs -text

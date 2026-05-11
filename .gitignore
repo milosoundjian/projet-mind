@@ -1,14 +1,12 @@
 local/
 outputs/
 
-# heavy results
-results/runs/*
-results/models/*
+# optional temporary junk
+results/runs/tmp/**
+results/models/tmp/**
 
-# keep directory placeholders
-!results/runs/.gitkeep
-!results/models/.gitkeep
-
+!results/runs/tmp/.gitkeep
+!results/models/tmp/.gitkeep
 .vscode/
 
 # d3rlpy
