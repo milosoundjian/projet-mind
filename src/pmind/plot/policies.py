@@ -291,13 +291,16 @@ def plot_trajectories(
 
 
 def plot_policies(
-    policies,
+    policies: dict | list,  # dict[reward, policy] or list[policy] by timestep
     env_name,
     n_trajectories,
     state_x=None,
     state_y=None,
     pendulum_angle=None,
     polar_coord=None,
+    save_rb_policy_interval=None,
+    over_time=False,
+    title=None,
 ):
     defaults = get_plot_defaults(env_name)
     if state_x is None:
@@ -309,11 +312,17 @@ def plot_policies(
     if polar_coord is None:
         polar_coord = defaults["polar_coord"]
 
-    n_rewards = len(policies)
+    n_subplots = len(policies)
     ncols = (
-        3 if n_rewards > 1 and n_rewards % 2 != 0 else 2 if n_rewards % 2 == 0 else 1
+        4
+        if n_subplots % 4 == 0
+        else 3
+        if n_subplots > 1 and n_subplots % 2 != 0
+        else 2
+        if n_subplots % 2 == 0
+        else 1
     )
-    nrows = int(np.ceil(n_rewards / ncols))
+    nrows = int(np.ceil(n_subplots / ncols))
 
     subplot_width = 4
     subplot_height = 4
@@ -321,7 +330,7 @@ def plot_policies(
         subplot_width * ncols,
         subplot_height * nrows,
     )
-    
+
     fig, axes = plt.subplots(
         nrows,
         ncols,
@@ -331,7 +340,20 @@ def plot_policies(
 
     axes = np.atleast_1d(axes).flatten()
 
-    for i, (reward, policy) in enumerate(sorted(policies.items())):
+    if not over_time:
+        policies = sorted(policies.items())
+
+    for i, item in enumerate(policies):
+        if over_time:
+            policy = item
+            if save_rb_policy_interval:
+                subtitle = f"{(i + 1) * save_rb_policy_interval} steps"
+            else:
+                subtitle = f"checkpoint {i}"
+        else:
+            reward, policy = item
+            subtitle = f"reward {reward}"
+
         plot_policy(
             env_name=env_name,
             policy=policy,
@@ -352,10 +374,28 @@ def plot_policies(
                 ax=axes[i],
                 pendulum_angle=pendulum_angle,
             )
-        axes[i].set_title(f"reward {reward}")
+        axes[i].set_title(subtitle)
 
     for ax in axes[i + 1 :]:
         fig.delaxes(ax)
 
-    plt.suptitle(f"Policy in state space of {env_name}")
+    if over_time:
+        fig.suptitle(
+            f"Policy evolution during offline learning of {env_name}"
+            if title is None
+            else title
+        )
+    else:
+        plt.suptitle(f"Policy in state space of {env_name}" if title is None else title)
     plt.tight_layout()
+
+
+def plot_checkpoint_policies(checkpoint, n_trajectories=0):
+    plot_policies(
+        checkpoint["policies_over_time"],
+        checkpoint["env_name"],
+        n_trajectories=n_trajectories,
+        save_rb_policy_interval=checkpoint["save_rb_policy_interval"],
+        over_time=True,
+        title=f"Policy evolution during offline learning of {checkpoint['env_name']} ({'exploit_reward'})\n{checkpoint['type']} {checkpoint['rb_composition']}",
+    )

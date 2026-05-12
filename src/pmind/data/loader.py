@@ -143,7 +143,11 @@ def load_all_experiments(
     env_names=["CartPoleContinuous-v1", "Pendulum-v1", "MountainCarContinuous-v0"],
     experiments=None,
     verbose=False,
+    from_tmp=False,
 ):
+    if from_tmp:
+        runs_dir /= "tmp"
+
     if experiments is None:
         experiments = [
             p.name for p in runs_dir.iterdir() if p.is_dir() and p.name != "tmp"
@@ -273,12 +277,60 @@ def load_all_policies(
     input_dir=paths.MODELS_DIR,
     for_plot=False,
     rewards_to_plot=REWARDS_TO_PLOT,
+    from_tmp=False,
 ):
+    if from_tmp:
+        input_dir /= "tmp"
     policies = {}
     for file in (input_dir / env_name).glob("policy-*.pt"):
         reward = file.stem.removeprefix("policy-")
         if for_plot:
-            if reward not in rewards_to_plot["action"][env_name] + rewards_to_plot["branch"][env_name]:
+            if (
+                reward
+                not in rewards_to_plot["action"][env_name]
+                + rewards_to_plot["branch"][env_name]
+            ):
                 continue
         policies[reward] = torch.load(file, weights_only=False)
     return policies
+
+
+def load_policy_checkpoint(
+    env_name,
+    type_,
+    library="bbrl",
+    algo="td3",
+    exploit_reward=None,
+    eval_env=0,
+    seed=0,
+    rewards_to_plot=REWARDS_TO_PLOT,
+    input_dir=paths.CHECKPOINTS_DIR,
+    from_tmp=False,
+):
+    if from_tmp:
+        input_dir /= "tmp"
+
+    if exploit_reward is None:
+        exploit_reward = rewards_to_plot[type_][env_name][0]
+
+    fname = f"{library}-{algo}-{type_}-{env_name}-{exploit_reward}.pt"
+    test_log = torch.load(input_dir / fname, weights_only=False)
+    policies = test_log["policies"]
+    replay_buffers = test_log["replay_buffers"]
+    save_rb_policy_interval = test_log["save_rb_policy_interval"]
+    rb_composition = test_log["rb_composition"]
+    rb_composition_type = test_log["type"]
+
+    rb = replay_buffers[eval_env][seed]
+    policies_over_time = policies[eval_env][seed]
+
+    return {
+        "rb": rb,
+        "policies_over_time": policies_over_time,
+        "rb_composition": rb_composition,
+        "type": type_,
+        "rb_composition_type": rb_composition_type,
+        "exploit_reward": exploit_reward,
+        "save_rb_policy_interval": save_rb_policy_interval,
+        "env_name": env_name,
+    }

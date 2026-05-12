@@ -4,9 +4,12 @@ outputs/
 # optional temporary junk
 results/runs/tmp/**
 results/models/tmp/**
+results/checkpoints/tmp/**
 
 !results/runs/tmp/.gitkeep
 !results/models/tmp/.gitkeep
+!results/checkpoints/tmp/.gitkeep
+
 .vscode/
 
 # d3rlpy
