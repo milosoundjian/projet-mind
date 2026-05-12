@@ -222,7 +222,7 @@ def load_buffers(env_name, type_):
 def load_all_buffers(
     env_name,
     for_plot=False,
-    noise=1,
+    noise=1.0,
     branch_depth=3,
     n_branches=3,
     mix_proportion=None,
@@ -254,8 +254,8 @@ def load_all_buffers(
         buffers = {
             "uniform": rb_unif,
             f"exploit ({reward_action})": rb_exploit,
-            "action noise": buffers["action"][reward_action][str(float(noise))],
-            "branching noise": buffers["branch"][reward_branch][str(float(noise))][
+            f"action noise ({noise})": buffers["action"][reward_action][str(float(noise))],
+            f"branching noise ({noise})": buffers["branch"][reward_branch][str(float(noise))][
                 str(branch_depth)
             ][str(n_branches)],
         }

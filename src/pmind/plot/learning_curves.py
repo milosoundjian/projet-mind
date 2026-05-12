@@ -6,6 +6,7 @@ import re
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_rgb
 
 from ..config.environments import ENV_NAMES, REWARDS_TO_PLOT, REWARD_LIMITS
 
@@ -193,6 +194,7 @@ def plot_rb_compositions(
     last_steps=1,
     ax=None,
     label=None,
+    color=None,
     reward_limits=REWARD_LIMITS,
     noise_limits = (0.01, 100)
 ):
@@ -214,7 +216,7 @@ def plot_rb_compositions(
         last_steps,
     )
     rb_composition = [float(comp) for comp in rb_composition]
-    ax.plot(rb_composition, means, label=label)
+    ax.plot(rb_composition, means, label=label, color=color)
     ax.fill_between(
         rb_composition,
         means - stds,
@@ -364,6 +366,14 @@ def plot_compositions_by_reward(
     plt.tight_layout()
 
 
+def blue_to_red_colors(n):
+    blue = np.array(to_rgb("#3B4CC0"))
+    red  = np.array(to_rgb("#B40426"))
+    return [
+        tuple((1 - t) * blue + t * red)
+        for t in np.linspace(0, 1, n)
+    ]
+
 def plot_summary(
     experiment_logs,
     smooth_mode,
@@ -375,6 +385,9 @@ def plot_summary(
     rewards_to_plot=REWARDS_TO_PLOT,
     title=None,
 ):
+    cmap = plt.get_cmap("plasma")   
+    colors = cmap(np.linspace(0, 1, len(steps_to_take)+1))[:-1]
+    # colors = generate_colors(len(steps_to_take))
     fig, axes = plt.subplots(len(types_to_plot), 3, figsize=(15, 10))
     env_reward = {}
     for i, rb_composition_type in enumerate(types_to_plot):
@@ -401,6 +414,7 @@ def plot_summary(
                     last_steps,
                     ax=ax,
                     label=str(step_to_take if step_to_take is not None else max_step),
+                    color=colors[i_step]
                 )
             if i == 0:
                 ax.set_title(f"{env_name.split('-')[0]} ({reward})")
