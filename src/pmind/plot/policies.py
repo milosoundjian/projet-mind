@@ -4,55 +4,15 @@ import matplotlib.pyplot as plt
 
 import gymnasium as gym
 
-ENV_NAMES = (
-    "CartPoleContinuous-v1",
-    "Pendulum-v1",
-    "MountainCarContinuous-v0",
-    # "LunarLanderContinuous-v3",
+from ..config.environments import (
+    ALL_STATE_SPACES,
+    ALL_ACTION_SPACES,
+    ALL_STATE_NAMES,
+    ALL_INIT_SPACES,
+    DEFAULT_STATES,
+    EPISODE_LENGTHS,
+    get_plot_defaults,
 )
-
-ALL_ACTION_SPACES = {
-    "CartPoleContinuous-v1": [-1,1],
-    "Pendulum-v1": [-2,2],
-    "MountainCarContinuous-v0": [-1,1],
-    # "LunarLanderContinuous-v3": = []
-}
-
-ALL_STATE_SPACES = {
-    "CartPoleContinuous-v1": np.array(
-        [[-4.8, 4.8], 
-         [-np.inf, np.inf], 
-         [-0.41887903, 0.41887903], 
-         [-0.5, 3]#[-np.inf, np.inf]
-         ],
-        dtype=np.float32,
-    ),
-    "Pendulum-v1": np.array([[-1.0, 1.0], [-1.0, 1.0], [-8.0, 8.0]], dtype=np.float32),
-    "MountainCarContinuous-v0": np.array(
-        [[-1.2, 0.6], [-0.07, 0.07]], dtype=np.float32
-    ),
-}
-
-ALL_STATE_NAMES = {
-    "CartPoleContinuous-v1": ["position", "velocity", "angle", "angular velocity"],
-    "Pendulum-v1": ["cosine", "sine", "angular velocity"],
-    "MountainCarContinuous-v0": ["position", "velocity"],
-    # "LunarLanderContinuous-v3" : [],
-}
-
-ALL_INIT_SPACES = {
-    "CartPoleContinuous-v1": np.array([[-0.05, 0.05]] * 4),
-    "Pendulum-v1": np.array([[-1, 1]] * 3),
-    "MountainCarContinuous-v0": np.array([[-0.6, -0.4], [0, 0]]),
-    # "LunarLanderContinuous-v3" : [],
-}
-
-EPISODE_LENGTHS = {
-    "CartPoleContinuous-v1": 500,
-    "Pendulum-v1": 200,
-    "MountainCarContinuous-v0": 900,
-    # "LunarLanderContinuous-v3" : [],
-}
 
 
 def plot_rb_space_coverage(
@@ -64,8 +24,8 @@ def plot_rb_space_coverage(
     colorbar=True,
     pendulum_angle=False,
 ):
-    state_names=ALL_STATE_NAMES[env_name]
-    state_space=ALL_STATE_SPACES[env_name]
+    state_names = ALL_STATE_NAMES[env_name]
+    state_space = ALL_STATE_SPACES[env_name]
     action_min, action_max = ALL_ACTION_SPACES[env_name]
     rb_states = rb.variables["env/env_obs"].detach().numpy()
     rb_actions = rb.variables["action"].detach().numpy()
@@ -108,12 +68,11 @@ def plot_rb_space_coverage(
         c=actions,
         cmap="coolwarm",
         vmin=action_min,
-        vmax=action_max
+        vmax=action_max,
     )
     if colorbar:
         cbar = fig.colorbar(sc, ax=ax)
         cbar.set_label("action")
-
 
     ax.set_xlabel(x_name) if x_name is not None else None
     ax.set_ylabel(y_name) if y_name is not None else None
@@ -122,6 +81,55 @@ def plot_rb_space_coverage(
     ax.set_ylim(y_lim) if (y_lim is not None and np.all(~np.isinf(y_lim))) else None
 
     return ax
+
+
+def plot_replay_buffers(
+    replay_buffers,
+    env_name,
+    state_x=None,
+    state_y=None,
+    pendulum_angle=None,
+    polar_coord=None,
+):
+    defaults = get_plot_defaults(env_name)
+    if state_x is None:
+        state_x = defaults["state_x"]
+    if state_y is None:
+        state_y = defaults["state_y"]
+    if pendulum_angle is None:
+        pendulum_angle = defaults["pendulum_angle"]
+    if polar_coord is None:
+        polar_coord = defaults["polar_coord"]
+
+    n_buffers = len(replay_buffers)
+    ncols = 2 if n_buffers > 1 else 1
+    nrows = int(np.ceil(n_buffers / ncols))
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(10, 10),
+        subplot_kw={"projection": "polar"} if polar_coord else None,
+    )
+
+    axes = np.atleast_1d(axes).flatten()
+
+    for i, (rb_type, rb) in enumerate(replay_buffers.items()):
+        plot_rb_space_coverage(
+            env_name=env_name,
+            rb=rb,
+            state_x=state_x,
+            state_y=state_y,
+            pendulum_angle=pendulum_angle,
+            ax=axes[i],
+        )
+
+        axes[i].set_title(rb_type)
+
+    for ax in axes[i + 1 :]:
+        fig.delaxes(ax)
+
+    plt.suptitle(f"Replay buffer state-action space coverage for {env_name}")
+    plt.tight_layout()
 
 
 def plot_policy(
@@ -181,13 +189,12 @@ def plot_policy(
     for i_x in range(len(x)):
         for i_y in range(len(y)):
             if pendulum_angle:
-
                 state = np.array([np.cos(x[i_x]), np.sin(x[i_x]), y[i_y]])
             else:
                 state = fixed_state.copy()
                 state[state_x] = x[i_x]
                 state[state_y] = y[i_y]
-                
+
             Z[i_x, i_y] = policy.model(torch.tensor([state]).float()).item()
 
     cntr = ax.pcolormesh(X, Y, Z, cmap="coolwarm", vmin=action_min, vmax=action_max)
@@ -202,7 +209,6 @@ def plot_trajectories(
     env_name,
     policy,
     nb_traj,
-    
     state_x,
     state_y,
     traj_length=None,
@@ -212,10 +218,10 @@ def plot_trajectories(
     env = gym.make(env_name)
     state_names = ALL_STATE_NAMES[env_name]
     init_space = ALL_INIT_SPACES[env_name]
-    state_names=ALL_STATE_NAMES[env_name]
+    state_names = ALL_STATE_NAMES[env_name]
     if traj_length is None:
         traj_length = EPISODE_LENGTHS[env_name]
-    
+
     if ax is None:
         fig, ax = plt.subplots(
             subplot_kw={"projection": "polar"} if pendulum_angle else None
@@ -249,7 +255,7 @@ def plot_trajectories(
             env.state = env.unwrapped.state = np.array([th, th_dot])
         else:
             env.state = env.unwrapped.state = state
-            
+
         if pendulum_angle:
             trajectory[:, 0] = np.array([th, th_dot])
         else:
@@ -257,7 +263,7 @@ def plot_trajectories(
 
         for j in range(traj_length - 1):
             action = np.array([policy.model(torch.tensor(state).float()).item()])
-            state, _, terminated, truncated, _  = env.step(action)
+            state, _, terminated, truncated, _ = env.step(action)
 
             if pendulum_angle:
                 cos_th, sin_th, th_dot = state
@@ -265,9 +271,9 @@ def plot_trajectories(
                 trajectory[:, j + 1] = np.array([th, th_dot])
             else:
                 trajectory[:, j + 1] = state
-            
+
             if terminated or truncated:
-                trajectory = trajectory[:, :j + 2]
+                trajectory = trajectory[:, : j + 2]
                 break
 
         if pendulum_angle:
@@ -282,3 +288,74 @@ def plot_trajectories(
         ax.set_xlabel(x_name) if x_name else None
         ax.set_ylabel(y_name) if y_name else None
     return ax
+
+
+def plot_policies(
+    policies,
+    env_name,
+    n_trajectories,
+    state_x=None,
+    state_y=None,
+    pendulum_angle=None,
+    polar_coord=None,
+):
+    defaults = get_plot_defaults(env_name)
+    if state_x is None:
+        state_x = defaults["state_x"]
+    if state_y is None:
+        state_y = defaults["state_y"]
+    if pendulum_angle is None:
+        pendulum_angle = defaults["pendulum_angle"]
+    if polar_coord is None:
+        polar_coord = defaults["polar_coord"]
+
+    n_rewards = len(policies)
+    ncols = (
+        3 if n_rewards > 1 and n_rewards % 2 != 0 else 2 if n_rewards % 2 == 0 else 1
+    )
+    nrows = int(np.ceil(n_rewards / ncols))
+
+    subplot_width = 4
+    subplot_height = 4
+    figsize = (
+        subplot_width * ncols,
+        subplot_height * nrows,
+    )
+    
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=figsize,
+        subplot_kw={"projection": "polar"} if polar_coord else None,
+    )
+
+    axes = np.atleast_1d(axes).flatten()
+
+    for i, (reward, policy) in enumerate(sorted(policies.items())):
+        plot_policy(
+            env_name=env_name,
+            policy=policy,
+            state_x=state_x,
+            state_y=state_y,
+            fixed_state=None,
+            ax=axes[i],
+            pendulum_angle=pendulum_angle,
+        )
+        if n_trajectories > 0:
+            plot_trajectories(
+                env_name=env_name,
+                policy=policy,
+                nb_traj=n_trajectories,
+                state_x=state_x,
+                state_y=state_y,
+                traj_length=None,
+                ax=axes[i],
+                pendulum_angle=pendulum_angle,
+            )
+        axes[i].set_title(f"reward {reward}")
+
+    for ax in axes[i + 1 :]:
+        fig.delaxes(ax)
+
+    plt.suptitle(f"Policy in state space of {env_name}")
+    plt.tight_layout()

@@ -6,7 +6,9 @@ import numpy as np
 import torch
 
 from . import paths
+from ..replay import mix_transitions
 
+from ..config.environments import REWARDS_TO_PLOT
 from collections import defaultdict
 
 
@@ -18,52 +20,6 @@ def to_dict(d):
     if isinstance(d, defaultdict):
         d = {k: to_dict(v) for k, v in d.items()}
     return d
-
-
-def load_buffers(env_name, type_):
-    buffers = nested_dict()
-    env_dir = paths.MODELS_DIR / env_name
-    if type_ == "unif":
-        pattern = r"rb-unif\.pt"
-
-    elif type_ == "exploit":
-        pattern = r"rb-(?P<reward>-?\d+)\.pt"
-
-    elif type_ == "action":
-        pattern = r"rb-(?P<reward>-?\d+)-noise-(?P<noise>\d+(?:\.\d+)?)\.pt"
-
-    elif type_ == "branch":
-        pattern = r"rb-(?P<reward>-?\d+)-noise-(?P<noise>\d+(?:\.\d+)?)-d(?P<branch_depth>\d+)-k(?P<n_branches>\d+)\.pt"
-
-    else:
-        raise AttributeError("Type can be only: unif, exploit, action, branch")
-    pattern = re.compile(pattern)
-    for file in env_dir.glob("rb-*.pt"):
-        match = pattern.fullmatch(file.name)
-        if match:
-            info = match.groupdict()
-            reward = info.get("reward", None)
-            noise = info.get("noise", None)
-            branch_depth = info.get("branch_depth", None)
-            n_branches = info.get("n_branches", None)
-
-            buffer = torch.load(file, weights_only=False)
-            if type_ == "unif":
-                buffers = buffer
-            elif type_ == "exploit":
-                buffers[reward] = buffer
-            elif type_ == "action":
-                buffers[reward][noise] = buffer
-            elif type_ == "branch":
-                buffers[reward][noise][branch_depth][n_branches] = buffer
-    return to_dict(buffers)
-
-
-def load_all_buffers(env_name):
-    buffers = {}
-    for type_ in ("unif", "exploit", "action", "branch"):
-        buffers[type_] = load_buffers(env_name, type_=type_)
-    return buffers
 
 
 def load_experiment_results(
@@ -141,7 +97,9 @@ def load_experiment_results(
                             "eval_interval": d_ref["eval_interval"],
                             "cfg": d_ref["cfg"],
                             "seeds": seeds,
-                            "type": d_ref["type"] + "s" if not d_ref["type"].endswith("s") else d_ref["type"],
+                            "type": d_ref["type"] + "s"
+                            if not d_ref["type"].endswith("s")
+                            else d_ref["type"],
                         }
                         # TODO: add asserts that all files have consistent metadata
                         test_log["performances"] = [
@@ -216,3 +174,111 @@ def load_all_experiments(
             all_logs[length][library][algo][noise] = experiments_logs["noise_levels"]
 
     return to_dict(all_logs)
+
+
+def load_buffers(env_name, type_):
+    buffers = nested_dict()
+    env_dir = paths.MODELS_DIR / env_name
+    if type_ == "unif":
+        pattern = r"rb-unif\.pt"
+
+    elif type_ == "exploit":
+        pattern = r"rb-(?P<reward>-?\d+)\.pt"
+
+    elif type_ == "action":
+        pattern = r"rb-(?P<reward>-?\d+)-noise-(?P<noise>\d+(?:\.\d+)?)\.pt"
+
+    elif type_ == "branch":
+        pattern = r"rb-(?P<reward>-?\d+)-noise-(?P<noise>\d+(?:\.\d+)?)-d(?P<branch_depth>\d+)-k(?P<n_branches>\d+)\.pt"
+
+    else:
+        raise AttributeError("Type can be only: unif, exploit, action, branch")
+    pattern = re.compile(pattern)
+    for file in env_dir.glob("rb-*.pt"):
+        match = pattern.fullmatch(file.name)
+        if match:
+            info = match.groupdict()
+            reward = info.get("reward", None)
+            noise = info.get("noise", None)
+            branch_depth = info.get("branch_depth", None)
+            n_branches = info.get("n_branches", None)
+
+            buffer = torch.load(file, weights_only=False)
+            if type_ == "unif":
+                buffers = buffer
+            elif type_ == "exploit":
+                buffers[reward] = buffer
+            elif type_ == "action":
+                buffers[reward][noise] = buffer
+            elif type_ == "branch":
+                buffers[reward][noise][branch_depth][n_branches] = buffer
+    return to_dict(buffers)
+
+
+def load_all_buffers(
+    env_name,
+    for_plot=False,
+    noise=1,
+    branch_depth=3,
+    n_branches=3,
+    mix_proportion=None,
+    rewards_to_plot=REWARDS_TO_PLOT,
+):
+    buffers = {}
+    for type_ in ("unif", "exploit", "action", "branch"):
+        buffers[type_] = load_buffers(env_name, type_=type_)
+
+    if for_plot:
+        reward_action = next(
+            iter(
+                set(buffers["action"].keys()).intersection(
+                    rewards_to_plot["action"][env_name]
+                )
+            )
+        )
+        reward_branch = next(
+            iter(
+                set(buffers["action"].keys()).intersection(
+                    rewards_to_plot["action"][env_name]
+                )
+            )
+        )
+
+        rb_unif = buffers["unif"]
+        rb_exploit = buffers["action"][reward_action]["0.0"]
+
+        buffers = {
+            "uniform": rb_unif,
+            f"exploit ({reward_action})": rb_exploit,
+            "action noise": buffers["action"][reward_action][str(float(noise))],
+            "branching noise": buffers["branch"][reward_branch][str(float(noise))][
+                str(branch_depth)
+            ][str(n_branches)],
+        }
+
+        if mix_proportion is not None:
+            rb_mixed = mix_transitions(
+                rb_unif,
+                rb_exploit,
+                buffer_size=(rb_unif.size() + rb_exploit.size()) // 2,
+                proportion=mix_proportion,
+            )
+            buffers[f"mixed ({mix_proportion})"] = rb_mixed
+
+    return buffers
+
+
+def load_all_policies(
+    env_name,
+    input_dir=paths.MODELS_DIR,
+    for_plot=False,
+    rewards_to_plot=REWARDS_TO_PLOT,
+):
+    policies = {}
+    for file in (input_dir / env_name).glob("policy-*.pt"):
+        reward = file.stem.removeprefix("policy-")
+        if for_plot:
+            if reward not in rewards_to_plot["action"][env_name] + rewards_to_plot["branch"][env_name]:
+                continue
+        policies[reward] = torch.load(file, weights_only=False)
+    return policies
