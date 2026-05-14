@@ -1,3 +1,2 @@
-results/runs/** filter=lfs diff=lfs merge=lfs -text
-results/models/** filter=lfs diff=lfs merge=lfs -text
-results/checkpoints/** filter=lfs diff=lfs merge=lfs -text
+results/** filter=lfs diff=lfs merge=lfs -text
+results/**/.gitkeep !filter !diff !merge text
