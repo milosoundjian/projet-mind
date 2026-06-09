@@ -1,4 +1,4 @@
-# explore-exploit-offline-rl
+# offline-rl-buffer-strategies
 
 A study of **offline reinforcement learning** on continuous control tasks.
 
