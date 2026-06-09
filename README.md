@@ -8,3 +8,5 @@ We investigate how different **data collection strategies** — uniform state-ac
 **Environments:** CartPoleContinuous-v1, Pendulum-v1, MountainCarContinuous-v0  
 **Frameworks:** [BBRL](https://github.com/osigaud/bbrl), [d3rlpy](https://github.com/takuseno/d3rlpy), PyTorch
 
+**Report:** [docs/pmind-report-antipin-oundjian.pdf](docs/pmind-report-antipin-oundjian.pdf)
+
