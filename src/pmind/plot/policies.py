@@ -69,9 +69,10 @@ def plot_rb_space_coverage(
         cmap="coolwarm",
         vmin=action_min,
         vmax=action_max,
+        rasterized=True,
     )
     if colorbar:
-        cbar = fig.colorbar(sc, ax=ax)
+        cbar = fig.colorbar(sc, ax=ax, fraction=0.03, pad=0.08)
         cbar.set_label("action")
 
     ax.set_xlabel(x_name) if x_name is not None else None
@@ -90,6 +91,7 @@ def plot_replay_buffers(
     state_y=None,
     pendulum_angle=None,
     polar_coord=None,
+    title=None,
 ):
     defaults = get_plot_defaults(env_name)
     if state_x is None:
@@ -107,7 +109,7 @@ def plot_replay_buffers(
     fig, axes = plt.subplots(
         nrows,
         ncols,
-        figsize=(10, 10),
+        figsize= (12,8) if polar_coord else (10,4),#(8, 16),
         subplot_kw={"projection": "polar"} if polar_coord else None,
     )
 
@@ -127,8 +129,9 @@ def plot_replay_buffers(
 
     for ax in axes[i + 1 :]:
         fig.delaxes(ax)
-
-    plt.suptitle(f"Replay buffer state-action space coverage for {env_name}")
+    if title is not None:
+        # f"Replay buffer state-action space coverage for {env_name}"
+        plt.suptitle(title)
     plt.tight_layout()
 
 
@@ -139,7 +142,7 @@ def plot_policy(
     state_y,
     fixed_state=None,
     ax=None,
-    grid_density=50,
+    grid_density=500,
     colorbar=True,
     pendulum_angle=False,
 ):
@@ -197,7 +200,15 @@ def plot_policy(
 
             Z[i_x, i_y] = policy.model(torch.tensor([state]).float()).item()
 
-    cntr = ax.pcolormesh(X, Y, Z, cmap="coolwarm", vmin=action_min, vmax=action_max)
+    cntr = ax.pcolormesh(
+        X,
+        Y,
+        Z,
+        cmap="coolwarm",
+        vmin=action_min,
+        vmax=action_max,
+        rasterized=True,
+    )
     if colorbar:
         cbar = fig.colorbar(cntr, ax=ax, shrink=0.5)
         cbar.set_label("action")
@@ -284,10 +295,33 @@ def plot_trajectories(
             y = trajectory[state_y]
 
         ax.plot(x, y, c="black", alpha=0.3)
+        ax.plot(
+            x[0],
+            y[0],
+            "o",
+            color="white",
+            markeredgecolor="black",
+            markeredgewidth=1.5,
+            markersize=9,
+            zorder=6,
+            label="start",
+        )
+        ax.plot(
+            x[-1],
+            y[-1],
+            "^",
+            color="white",
+            markeredgecolor="black",
+            markeredgewidth=1.5,
+            markersize=9,
+            zorder=6,
+            label="end",
+        )
 
         ax.set_xlabel(x_name) if x_name else None
         ax.set_ylabel(y_name) if y_name else None
     return ax
+
 
 
 def plot_policies(
@@ -301,6 +335,7 @@ def plot_policies(
     save_rb_policy_interval=None,
     over_time=False,
     title=None,
+    add_subtitle=True,
 ):
     defaults = get_plot_defaults(env_name)
     if state_x is None:
@@ -330,6 +365,8 @@ def plot_policies(
         subplot_width * ncols,
         subplot_height * nrows,
     )
+    if (ncols, nrows) == (1, 1):
+        figsize = (7, 7)
 
     fig, axes = plt.subplots(
         nrows,
@@ -341,18 +378,20 @@ def plot_policies(
     axes = np.atleast_1d(axes).flatten()
 
     if not over_time:
-        policies = sorted(policies.items())
+        policies = sorted(policies.items(), key=lambda x: int(x[0]))
 
     for i, item in enumerate(policies):
         if over_time:
             policy = item
-            if save_rb_policy_interval:
-                subtitle = f"{(i + 1) * save_rb_policy_interval} steps"
-            else:
-                subtitle = f"checkpoint {i}"
+            if add_subtitle:
+                if save_rb_policy_interval:
+                    subtitle = f"{(i + 1) * save_rb_policy_interval} steps"
+                else:
+                    subtitle = f"checkpoint {i}"
         else:
             reward, policy = item
-            subtitle = f"reward {reward}"
+            if add_subtitle:
+                subtitle = f"reward {reward}"
 
         plot_policy(
             env_name=env_name,
@@ -374,7 +413,8 @@ def plot_policies(
                 ax=axes[i],
                 pendulum_angle=pendulum_angle,
             )
-        axes[i].set_title(subtitle)
+        if add_subtitle:
+            axes[i].set_title(subtitle)
 
     for ax in axes[i + 1 :]:
         fig.delaxes(ax)

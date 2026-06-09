@@ -25,6 +25,24 @@ REWARDS_TO_PLOT = {
     },
 }
 
+REWARDS_BEST = {
+    "unif": {
+        "CartPoleContinuous-v1": ["500"],
+        "Pendulum-v1": ["-84"],#["-209", "-233"],
+        "MountainCarContinuous-v0": ["82"]#["61"],
+    },
+    "action": {
+        "CartPoleContinuous-v1": ["500"],
+        "Pendulum-v1": ["-84"],#
+        "MountainCarContinuous-v0": ["82"]#["61"],
+    },
+    "branch": {
+        "CartPoleContinuous-v1": ["500"],
+        "Pendulum-v1": ["-84"],#
+        "MountainCarContinuous-v0": ["82"]#["61"],
+    },
+}
+
 REWARD_LIMITS = {
     "CartPoleContinuous-v1": (0, 500),
     "Pendulum-v1": (-1700, 0),
@@ -76,7 +94,7 @@ EPISODE_LENGTHS = {
 }
 
 DEFAULT_STATES = {
-    "CartPoleContinuous-v1": (0, 3),  # or (2, 3)
+    "CartPoleContinuous-v1": (2, 3),  # (0, 3) or (2, 3)
     "Pendulum-v1": (0, 1),
     "MountainCarContinuous-v0": (0, 1),
 }

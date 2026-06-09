@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgb
 
-from ..config.environments import ENV_NAMES, REWARDS_TO_PLOT, REWARD_LIMITS
+from ..config.environments import ENV_NAMES, REWARDS_TO_PLOT, REWARDS_BEST, REWARD_LIMITS
 
 
 def generate_colors(n, s=0.7, v=0.9):
@@ -383,13 +383,26 @@ def plot_summary(
     types_to_plot=("unif", "action", "branch"),
     env_names=ENV_NAMES,
     rewards_to_plot=REWARDS_TO_PLOT,
+    plot_best=False,
     title=None,
 ):
+    if plot_best:
+        rewards_to_plot = REWARDS_BEST
+    types_to_plot = [type_ for type_ in types_to_plot if experiment_logs[type_] is not None]
     cmap = plt.get_cmap("plasma")   
     colors = cmap(np.linspace(0, 1, len(steps_to_take)+1))[:-1]
     # colors = generate_colors(len(steps_to_take))
-    fig, axes = plt.subplots(len(types_to_plot), 3, figsize=(15, 10))
+    fig, axes = plt.subplots(len(types_to_plot),3, figsize=(15, 10))
+    if len(axes.shape)==1:
+        axes = axes.reshape(1,-1)
+        
     env_reward = {}
+    type2name = {
+        "unif": "Uniform Exploration",
+        "action": "Action Noise",
+        "branch": "Branching Noise"
+    }
+    
     for i, rb_composition_type in enumerate(types_to_plot):
         for j, env_name in enumerate(env_names):
             ax = axes[i, j]
@@ -440,41 +453,31 @@ def plot_summary(
                 loc="lower center",
                 ncol=len(steps_to_take),
             )
-            fig.suptitle(
-                "Evaluation performance at different offline learning steps\nfor varying replay buffer compositions"
-                if title is None
-                else title,
-                fontsize=15,
-                fontweight="bold",
-            )
-
-    fig.text(
-        0.0,
-        0.8,
-        "Uniform Exploration",
-        va="center",
-        rotation="vertical",
-        fontsize=12,
-        fontweight="bold",
-    )
-    fig.text(
-        0.0,
-        0.55,
-        "Action Noise",
-        va="center",
-        rotation="vertical",
-        fontsize=12,
-        fontweight="bold",
-    )
-    fig.text(
-        0.0,
-        0.25,
-        "Branching Noise",
-        va="center",
-        rotation="vertical",
-        fontsize=12,
-        fontweight="bold",
-    )
+            if title is not None: 
+                fig.suptitle(
+                    title,
+                    fontsize=15,
+                    fontweight="bold",
+                )
+            
+            
+        # Center nicely the row titles:
+        fig.canvas.draw()  # needed to finalize subplot positions
+        row_axes = [axes[i, j] for j in range(3)]
+        bboxes = [ax.get_position() for ax in row_axes]
+        y_min = min(bb.y0 for bb in bboxes)+0.06
+        y_max = max(bb.y1 for bb in bboxes)
+        y_center = (y_min + y_max) / 2
+            
+        fig.text(
+            0.0,
+            y_center,
+            type2name[rb_composition_type],
+            va="center",
+            rotation="vertical",
+            fontsize=12,
+            fontweight="bold",
+        )
 
     for i, env_name in enumerate(env_names):
         axes[0, i].set_title(f"{env_name} ({env_reward[env_name]})",fontweight="bold")

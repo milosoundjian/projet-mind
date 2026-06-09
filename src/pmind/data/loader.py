@@ -222,11 +222,12 @@ def load_buffers(env_name, type_):
 def load_all_buffers(
     env_name,
     for_plot=False,
-    noise=1.0,
+    noises=[1.0],
     branch_depth=3,
     n_branches=3,
     mix_proportion=None,
     rewards_to_plot=REWARDS_TO_PLOT,
+    unif_exploit_only=False
 ):
     buffers = {}
     for type_ in ("unif", "exploit", "action", "branch"):
@@ -251,32 +252,33 @@ def load_all_buffers(
         rb_unif = buffers["unif"]
         rb_exploit = buffers["action"][reward_action]["0.0"]
 
-        buffers = {
+        plot_buffers = {
             "uniform": rb_unif,
             f"exploit ({reward_action})": rb_exploit,
-            f"action noise ({noise})": buffers["action"][reward_action][str(float(noise))],
-            f"branching noise ({noise})": buffers["branch"][reward_branch][str(float(noise))][
-                str(branch_depth)
-            ][str(n_branches)],
         }
+        if not unif_exploit_only:
+            if not hasattr(noises, "__iter__"):
+                noises = [noises]
+            for noise in noises:
+                plot_buffers[f"action noise ({noise})"] = buffers["action"][reward_action][str(float(noise))]
+                plot_buffers[f"branching noise ({noise})"] = buffers["branch"][reward_branch][str(float(noise))][str(branch_depth)][str(n_branches)]
 
-        if mix_proportion is not None:
-            rb_mixed = mix_transitions(
-                rb_unif,
-                rb_exploit,
-                buffer_size=(rb_unif.size() + rb_exploit.size()) // 2,
-                proportion=mix_proportion,
-            )
-            buffers[f"mixed ({mix_proportion})"] = rb_mixed
+            if mix_proportion is not None:
+                rb_mixed = mix_transitions(
+                    rb_unif,
+                    rb_exploit,
+                    buffer_size=(rb_unif.size() + rb_exploit.size()) // 2,
+                    proportion=mix_proportion,
+                )
+                plot_buffers[f"mixed ({mix_proportion})"] = rb_mixed
 
-    return buffers
-
+    return plot_buffers
 
 def load_all_policies(
     env_name,
     input_dir=paths.MODELS_DIR,
     for_plot=False,
-    rewards_to_plot=REWARDS_TO_PLOT,
+    rewards_to_load=REWARDS_TO_PLOT,
     from_tmp=False,
 ):
     if from_tmp:
@@ -287,10 +289,11 @@ def load_all_policies(
         if for_plot:
             if (
                 reward
-                not in rewards_to_plot["action"][env_name]
-                + rewards_to_plot["branch"][env_name]
+                not in rewards_to_load["action"][env_name]
+                + rewards_to_load["branch"][env_name]
             ):
                 continue
+            
         policies[reward] = torch.load(file, weights_only=False)
     return policies
 
